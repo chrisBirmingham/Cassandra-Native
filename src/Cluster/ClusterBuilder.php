@@ -167,17 +167,20 @@ class ClusterBuilder
      */
     public function build(): Cassandra
     {
-        $compressor = null;
+        $compressors = [];
         if ($this->useCompression) {
             $extensions = get_loaded_extensions();
             if (in_array('lz4', $extensions)) {
-                $compressor = new Lz4Compressor();
-            } elseif (in_array('snappy', $extensions)) {
-                $compressor = new SnappyCompressor();
-            } else {
-                throw new \Exception('Compression enabled but lz4 and snappy extensions are not available');
+                $compressors[] = new Lz4Compressor();
             }
 
+            if (in_array('snappy', $extensions)) {
+                $compressors[] = new SnappyCompressor();
+            }
+
+            if (empty($compressors)) {
+                throw new \Exception('Compression enabled but lz4 and snappy extensions are not available');
+            }
         }
 
         $options = new ClusterOptions(
@@ -189,7 +192,7 @@ class ClusterBuilder
             $this->ssl,
             $this->port,
             $this->persistent,
-            $compressor
+            $compressors
         );
 
         return new Cassandra($options);

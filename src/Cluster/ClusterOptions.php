@@ -27,7 +27,10 @@ class ClusterOptions
 
     protected bool $persistent;
 
-    protected ?CompressorInterface $compressor;
+    /**
+     * @var CompressorInterface[]
+     */
+    protected array $compressors;
 
     /**
      * @param int $consistency
@@ -38,7 +41,7 @@ class ClusterOptions
      * @param ?SSLOptions $ssl
      * @param int $port
      * @param bool $persistent
-     * @param ?CompressorInterface $compressor
+     * @param CompressorInterface[] $compressors
      */
     public function __construct(
         int $consistency,
@@ -49,7 +52,7 @@ class ClusterOptions
         ?SSLOptions $ssl, 
         int $port,
         bool $persistent,
-        ?CompressorInterface $compressor
+        array $compressors
     ) {
         $this->consistency = $consistency;
         $this->hosts = $hosts;
@@ -59,7 +62,7 @@ class ClusterOptions
         $this->ssl = $ssl;
         $this->port = $port;
         $this->persistent = $persistent;
-        $this->compressor = $compressor;
+        $this->compressors = $compressors;
     }
 
     /**
@@ -127,10 +130,10 @@ class ClusterOptions
     }
 
     /**
-     * @return ?CompressorInterface
+     * @return CompressorInterface[]
      */
-    public function getCompressor(): ?CompressorInterface
+    public function getCompressors(): array
     {
-        return $this->compressor;
+        return $this->compressors;
     }
 }
