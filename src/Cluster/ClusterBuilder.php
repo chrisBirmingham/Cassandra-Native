@@ -23,6 +23,8 @@ class ClusterBuilder
 
     protected float $requestTimeout = 30;
 
+    protected int $attempts = 3;
+
     protected ?SSLOptions $ssl = null; 
 
     protected int $port = 9042;
@@ -65,6 +67,22 @@ class ClusterBuilder
         }
 
         $this->hosts = $hosts;
+        return $this;
+    }
+
+    /**
+     * Sets the max number of hosts the client will try to connect to before failing. Default is 3
+     *
+     * @param int $attempts
+     * @return $this
+     */
+    public function withMaxConnectionAttempts(int $attempts): static
+    {
+        if ($attempts <= 0) {
+            throw new \InvalidArgumentException('Max attempts cannot be less than 1');
+        }
+
+        $this->attempts = $attempts;
         return $this;
     }
 
@@ -189,6 +207,7 @@ class ClusterBuilder
             $this->authProvider,
             $this->connectTimeout,
             $this->requestTimeout,
+            $this->attempts,
             $this->ssl,
             $this->port,
             $this->persistent,

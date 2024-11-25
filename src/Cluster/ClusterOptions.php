@@ -21,6 +21,8 @@ class ClusterOptions
 
     protected float $requestTimeout;
 
+    protected int $attempts;
+
     protected ?SSLOptions $ssl; 
 
     protected int $port;
@@ -38,6 +40,7 @@ class ClusterOptions
      * @param ?AuthProviderInterface $authProvider
      * @param float $connectTimeout
      * @param float $requestTimeout
+     * @param int $attempts
      * @param ?SSLOptions $ssl
      * @param int $port
      * @param bool $persistent
@@ -49,6 +52,7 @@ class ClusterOptions
         ?AuthProviderInterface $authProvider,
         float $connectTimeout,
         float $requestTimeout,
+        int $attempts,
         ?SSLOptions $ssl, 
         int $port,
         bool $persistent,
@@ -59,6 +63,7 @@ class ClusterOptions
         $this->authProvider = $authProvider;
         $this->connectTimeout = $connectTimeout;
         $this->requestTimeout = $requestTimeout;
+        $this->attempts = $attempts;
         $this->ssl = $ssl;
         $this->port = $port;
         $this->persistent = $persistent;
@@ -103,6 +108,14 @@ class ClusterOptions
     public function getRequestTimeout(): float
     {
         return $this->requestTimeout;
+    }
+
+    /**
+     * @return int
+     */
+    public function getMaxConnectionAttempts(): int
+    {
+        return $this->attempts;
     }
 
     /**

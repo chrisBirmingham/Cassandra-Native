@@ -4,6 +4,8 @@ namespace CassandraNative\Result;
 
 class Rows implements \ArrayAccess, \Iterator
 {
+    protected int $position = 0;
+
     protected array $results;
 
     /**
@@ -27,7 +29,7 @@ class Rows implements \ArrayAccess, \Iterator
      */
     public function rewind(): void
     {
-        reset($this->results);
+        $this->position = 0;
     }
 
     /**
@@ -35,7 +37,7 @@ class Rows implements \ArrayAccess, \Iterator
      */
     public function current(): array
     {
-        return current($this->results);
+        return $this->results[$this->position];
     }
 
     /**
@@ -43,7 +45,7 @@ class Rows implements \ArrayAccess, \Iterator
      */
     public function key(): int
     {
-        return key($this->results);
+        return $this->position;
     }
 
     /**
@@ -51,7 +53,7 @@ class Rows implements \ArrayAccess, \Iterator
      */
     public function next(): void
     {
-        next($this->results);
+        $this->position++;
     }
 
     /**
@@ -59,8 +61,7 @@ class Rows implements \ArrayAccess, \Iterator
      */
     public function valid(): bool
     {
-        $last = array_key_last($this->results);
-        return key($this->results) < $last;
+        return isset($this->results[$this->position]);
     }
 
     /**
@@ -68,7 +69,7 @@ class Rows implements \ArrayAccess, \Iterator
      */
     public function offsetExists(mixed $offset): bool
     {
-        return key_exists($offset, $this->results);
+        return isset($this->results[$offset]);
     }
 
     /**

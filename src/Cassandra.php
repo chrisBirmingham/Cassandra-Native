@@ -184,13 +184,14 @@ class Cassandra
      */
     protected function establishConnection(ClusterOptions $clusterOptions): void
     {
-        $connected = false;
         $connectionErrors = [];
         $hosts = $clusterOptions->getHosts();
+        $maxAttempts = min(count($hosts), $clusterOptions->getMaxConnectionAttempts());
+        $attempt = 1;
 
         do {
-            // Choose a random contact host to connect too. If it fails try another one until we run out of hosts to
-            // try connecting too
+            // Choose a random contact host to connect too. If it fails try another one until we either connect to a
+            // host or hit max connection attempts
             $index = array_rand($hosts);
             $host = $hosts[$index];
             array_splice($hosts, $index, 1);
@@ -203,16 +204,17 @@ class Cassandra
                     $clusterOptions->getConnectTimeout()
                 );
 
-                $connected = true;
                 break;
             } catch (ConnectionException $e) {
                 $connectionErrors[$host] = $e->getMessage();
-            }
-        } while (!empty($hosts));
 
-        if (!$connected) {
-            throw new NoHostsAvailableException('Failed to connect to all hosts in Cassandra cluster', $connectionErrors);
-        }
+                if ($attempt === $maxAttempts) {
+                    throw new NoHostsAvailableException("Failed to connect to a Cassandra Host after $maxAttempts attempt(s)", $connectionErrors);
+                }
+
+                $attempt++;
+            }
+        } while (true);
 
         $sslOptions = $clusterOptions->getSSL();
         if ($sslOptions instanceof SSLOptions) {
@@ -247,7 +249,7 @@ class Cassandra
     }
 
     /**
-     * Retrieves a SUPPORTED frame from the cassandra node and checks if
+     * Retrieves a SUPPORTED frame from the cassandra node and returns Cassandra options as a map
      *
      * @return array The returned options map
      *
@@ -269,8 +271,8 @@ class Cassandra
     /**
      * Checks if the client and the connected cassandra node support the same options
      *
-     * @param ClusterOptions $clusterOptions 
-     * @param array $optionsMap              The options map to check
+     * @param ClusterOptions $clusterOptions Client configuration
+     * @param array $optionsMap              The options map from the cluster to check against
      *
      * @throws CassandraException
      */
@@ -278,7 +280,7 @@ class Cassandra
     {
         $configuredCompressors = $clusterOptions->getCompressors();
         
-        // No need to do anything if we're not configured to use compression
+        // We only support checking compression at the moment. Early return if we're not set to use it
         if (empty($configuredCompressors)) {
             return;
         }
@@ -289,7 +291,6 @@ class Cassandra
             throw new ProtocolException('Client configured to use compression but connected Cassandra Cluster only supports uncompressed communication');
         }
 
-
         // Loop through supported compressors and use first one we match on
         foreach ($configuredCompressors as $compressor) {
             if (in_array($compressor->getName(), $supportedCompressors)) {
@@ -298,10 +299,9 @@ class Cassandra
             }
         }
 
-
         throw new ProtocolException(
             sprintf(
-                'Client configured to use %s but Cassandra Cluster supports %s compression',
+                'Client configured to use %s compression but Cassandra Cluster supports %s compression',
                 implode(', ', $configuredCompressors),
                 implode(', ', $supportedCompressors)
             )
@@ -392,6 +392,7 @@ class Cassandra
                     throw new AuthenticationException("Cassandra issued a challenge response but provider doesn't support challenges");
                 }
 
+                // @todo This code could infinite loop. Possibly add a challenge limit
                 do {
                     $authChallengeResponseBody = $authProvider->challengeResponse($body);
                     $authChallengeResponseBody = $this->packLongString($authChallengeResponseBody);
@@ -463,8 +464,7 @@ class Cassandra
      *
      * @param string $cql The query to prepare.
      *
-     * @return PreparedStatement The statement's information to be used with the execute
-     *                           method.
+     * @return PreparedStatement The statement's information to be used with the execute method.
      *
      * @throws CassandraException
      */
@@ -1228,7 +1228,7 @@ class Cassandra
                 substr($value[1], 20);
         }
 
-        return NULL;
+        return null;
     }
 
     /**
@@ -1272,9 +1272,9 @@ class Cassandra
      *
      * @param string $content Content to unpack.
      *
-     * @return int Unpacked value.
+     * @return string Unpacked value.
      */
-    protected function unpackInet(string $content): int
+    protected function unpackInet(string $content): string
     {
         return inet_ntop($content);
     }

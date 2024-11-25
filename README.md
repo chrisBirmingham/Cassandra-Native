@@ -52,8 +52,10 @@ You can specify a set of IP/hostnames to connect to using the
 
 The client will attempt to connect to one of the contact points 
 at random. If the connection fails it will try another host until 
-all contact points have been attempted. If the client cannot connect to 
-any of the provided hosts a `NoHostsAvailableException` is thrown.
+all contact points have been attempted or max connection attempts,
+configured with the `withMaxConnectionAttempts` method,
+has been reached, default is 3 attempts. If the client cannot connect to 
+any of the provided hosts an `NoHostsAvailableException` is thrown.
 
 ```php
 $clusterBuilder = new \CassandraNative\Cluster\ClusterBuilder();
@@ -63,7 +65,8 @@ $cassandra = $clusterBuilder->build();
 
 When connecting, the created Cassandra instance doesn't connect to
 a specific keyspace. Calling `connect` on the created Cassandra
-instance with a keyspace name will execute a `USE $keyspace` query.
+instance is the same as performing a `USE $keyspace` query against 
+the connection.
 
 ```php
 $cassandra->connect('system');
@@ -94,11 +97,16 @@ on the cluster builder.
 $clusterBuilder->withCompression(true);
 ```
 
-The client will check to see if either the snappy or LZ4 extensions
-are installed and picks the one that is available. If both are
-available it will pick LZ4 over Snappy. If neither are available
-the builder will throw an exception when you try to build the
-cluster.
+The client checks to see if the LZ4 and Snappy extensions are loaded by
+PHP and then query the Cassandra node to see which compression algorithms
+are supported. The client will then choose the compression algorithm that
+both the client and server support. If both algorithms are supported, the 
+client will choose LZ4 over Snappy.
+
+If compression is requested and the two extensions aren't loaded or 
+the Cassandra node doesn't support compression, an exception is 
+thrown. An exception is also thrown if the client and Cassandra node
+support different compression algorithms.
 
 ### Authentication
 
