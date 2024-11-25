@@ -315,7 +315,11 @@ class Cassandra
      */
     protected function sendStartupFrame(ClusterOptions $clusterOptions): void
     {
-        $startBody = ['CQL_VERSION' => '3.0.0'];
+        $startBody = [
+            'CQL_VERSION' => '3.0.0',
+            'DRIVER_NAME' => 'PHP Cassandra Native Driver',
+            'DRIVER_VERSION' => '3.0.0'
+        ];
 
         if ($this->compressor instanceof CompressorInterface) {
             $startBody['COMPRESSION'] = $this->compressor->getName();
@@ -672,7 +676,7 @@ class Cassandra
         if ($flags & self::FLAG_WARNING) {
             $iPos = 0;
             $warningCount = $this->popShort($body, $iPos);
-            for ($i = 0; $i < $warningCount; $i++) {
+            for (; $warningCount; $warningCount--) {
                 $warning = $this->popString($body, $iPos);
                 trigger_error('Warning returned while processing Cassandra query: ' . $warning, E_USER_WARNING);
             }
@@ -793,7 +797,7 @@ class Cassandra
         if ($readPk) {
             $pkCount = $this->popInt($body, $bodyOffset);
 
-            for ($i = 0; $i < $pkCount; $i++) {
+            for (; $pkCount; $pkCount--) {
                 $this->popShort($body, $bodyOffset);
             }
         }
@@ -868,7 +872,7 @@ class Cassandra
         $rowsCount = $this->popInt($body, $bodyOffset);
 
         $retval = [];
-        for ($i = 0; $i < $rowsCount; $i++) {
+        for (; $rowsCount; $rowsCount--) {
             $row = [];
             foreach ($columns as $col) {
                 $content = $this->popBytes($body, $bodyOffset);
@@ -1409,15 +1413,16 @@ class Cassandra
      * @param string $body Content's body.
      * @param int &$offset Offset to start from.
      *
-     * @return ?string Bytes content.
+     * @return ?string Bytes content or null
      */
     protected function popBytes(string $body, int &$offset): ?string
     {
-        $stringLength = $this->intFromBin($body, $offset, 4);
+        $stringLength = $this->intFromBin($body, $offset, 4, true);
 
-        if ($stringLength == 0xFFFFFFFF) {
+        // If the length of a returned bytes block is < 0, the represented value is null
+        if ($stringLength < 0) {
             $offset += 4;
-            return NULL;
+            return null;
         }
 
         $retval = substr($body, $offset + 4, $stringLength);
