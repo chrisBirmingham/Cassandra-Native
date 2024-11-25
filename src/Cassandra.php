@@ -865,10 +865,10 @@ class Cassandra
         // <metadata><int count><rows_content>
         $columns = $this->parseRowsMetadata($body, $bodyOffset);
 
-        $rows_count = $this->popInt($body, $bodyOffset);
+        $rowsCount = $this->popInt($body, $bodyOffset);
 
         $retval = [];
-        for ($i = 0; $i < $rows_count; $i++) {
+        for ($i = 0; $i < $rowsCount; $i++) {
             $row = [];
             foreach ($columns as $col) {
                 $content = $this->popBytes($body, $bodyOffset);
@@ -1416,6 +1416,7 @@ class Cassandra
         $stringLength = $this->intFromBin($body, $offset, 4);
 
         if ($stringLength == 0xFFFFFFFF) {
+            $offset += 4;
             return NULL;
         }
 
