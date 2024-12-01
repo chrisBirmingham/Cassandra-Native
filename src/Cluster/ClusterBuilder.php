@@ -2,6 +2,7 @@
 
 namespace CassandraNative\Cluster;
 
+use CassandraNative\Auth\AuthProviderInterface;
 use CassandraNative\Cassandra;
 use CassandraNative\Compression\Lz4Compressor;
 use CassandraNative\Compression\SnappyCompressor;
@@ -16,13 +17,13 @@ class ClusterBuilder
      */
     protected array $hosts = ['localhost'];
 
-    protected ?string $username = null;
-
-    protected ?string $password = null;
+    protected ?AuthProviderInterface $authProvider = null;
 
     protected float $connectTimeout = 30;
 
     protected float $requestTimeout = 30;
+
+    protected int $attempts = 3;
 
     protected ?SSLOptions $ssl = null; 
 
@@ -70,6 +71,22 @@ class ClusterBuilder
     }
 
     /**
+     * Sets the max number of hosts the client will try to connect to before failing. Default is 3
+     *
+     * @param int $attempts
+     * @return $this
+     */
+    public function withMaxConnectionAttempts(int $attempts): static
+    {
+        if ($attempts <= 0) {
+            throw new \InvalidArgumentException('Max attempts cannot be less than 1');
+        }
+
+        $this->attempts = $attempts;
+        return $this;
+    }
+
+    /**
      * Sets the port to connect too. Default is 9042
      *
      * @param int $port
@@ -85,14 +102,12 @@ class ClusterBuilder
      * Sets the plaintext credentials for authenticating the connection to the cluster
      * Default to no authentication
      *
-     * @param string $username
-     * @param string $password
+     * @param AuthProviderInterface $authProvider
      * @return $this
      */
-    public function withCredentials(string $username, #[\SensitiveParameter] string $password): static
+    public function withCredentials(AuthProviderInterface $authProvider): static
     {
-        $this->username = $username;
-        $this->password = $password;
+        $this->authProvider = $authProvider;
         return $this;
     }
 
@@ -170,30 +185,33 @@ class ClusterBuilder
      */
     public function build(): Cassandra
     {
-        $compressor = null;
+        $compressors = [];
         if ($this->useCompression) {
             $extensions = get_loaded_extensions();
             if (in_array('lz4', $extensions)) {
-                $compressor = new Lz4Compressor();
-            } elseif (in_array('snappy', $extensions)) {
-                $compressor = new SnappyCompressor();
-            } else {
-                throw new \Exception('Compression enabled but lz4 and snappy extensions are not available');
+                $compressors[] = new Lz4Compressor();
             }
 
+            if (in_array('snappy', $extensions)) {
+                $compressors[] = new SnappyCompressor();
+            }
+
+            if (empty($compressors)) {
+                throw new \Exception('Compression enabled but lz4 and snappy extensions are not available');
+            }
         }
 
         $options = new ClusterOptions(
             $this->consistency,
             $this->hosts,
-            $this->username,
-            $this->password,
+            $this->authProvider,
             $this->connectTimeout,
             $this->requestTimeout,
+            $this->attempts,
             $this->ssl,
             $this->port,
             $this->persistent,
-            $compressor
+            $compressors
         );
 
         return new Cassandra($options);

@@ -2,8 +2,6 @@
 
 namespace CassandraNative\Compression;
 
-use CassandraNative\Exception\CompressionException;
-
 class SnappyCompressor implements CompressorInterface
 {
     /**

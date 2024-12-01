@@ -2,8 +2,6 @@
 
 namespace CassandraNative\Compression;
 
-use CassandraNative\Exception\CompressionException;
-
 class Lz4Compressor implements CompressorInterface
 {
     /**

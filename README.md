@@ -26,6 +26,7 @@ $ composer require intermaterium/cassandra-native
 * SSL Encryption
 * Persistent Connections
 * Compression via LZ4 and Snappy.
+* Authentication
 
 ## Missing Features
 
@@ -39,7 +40,7 @@ $ composer require intermaterium/cassandra-native
 ### Cluster
 
 A Cassandra cluster can be built via the `ClusterBuilder` class.
-By default the Cluster will try to connect to localhost.
+By default, the Cluster will try to connect to localhost.
 
 ```php
 $clusterBuilder = new \CassandraNative\Cluster\ClusterBuilder();
@@ -47,9 +48,14 @@ $cassandra = $clusterBuilder->build();
 ```
 
 You can specify a set of IP/hostnames to connect to using the
-`withContactPoints` method. Unlike the Datastax Driver, when
-connecting the client will pick a contact host at random and attempt
-to connect to it.
+`withContactPoints` method.
+
+The client will attempt to connect to one of the contact points 
+at random. If the connection fails it will try another host until 
+all contact points have been attempted or max connection attempts,
+configured with the `withMaxConnectionAttempts` method,
+has been reached, default is 3 attempts. If the client cannot connect to 
+any of the provided hosts an `NoHostsAvailableException` is thrown.
 
 ```php
 $clusterBuilder = new \CassandraNative\Cluster\ClusterBuilder();
@@ -59,7 +65,8 @@ $cassandra = $clusterBuilder->build();
 
 When connecting, the created Cassandra instance doesn't connect to
 a specific keyspace. Calling `connect` on the created Cassandra
-instance with a keyspace name will execute a `USE $keyspace` query.
+instance is the same as performing a `USE $keyspace` query against 
+the connection.
 
 ```php
 $cassandra->connect('system');
@@ -90,11 +97,65 @@ on the cluster builder.
 $clusterBuilder->withCompression(true);
 ```
 
-The client will check to see if either the snappy or LZ4 extensions
-are installed and picks the one that is available. If both are
-available it will pick LZ4 over Snappy. If neither are available
-the builder will throw an exception when you try to build the
-cluster.
+The client checks to see if the LZ4 and Snappy extensions are loaded by
+PHP and then query the Cassandra node to see which compression algorithms
+are supported. The client will then choose the compression algorithm that
+both the client and server support. If both algorithms are supported, the 
+client will choose LZ4 over Snappy.
+
+If compression is requested and the two extensions aren't loaded or 
+the Cassandra node doesn't support compression, an exception is 
+thrown. An exception is also thrown if the client and Cassandra node
+support different compression algorithms.
+
+### Authentication
+
+Authentication can be enabled by providing an Authentication Provider 
+to the cluster build via the `withCredentials` method. With this library
+is the `PasswordAuthenticator` provider which accepts a plaintext username 
+and password.
+
+```php
+$authProvider = new \CassandraNative\Auth\PasswordAuthenticator('cassandra', 'cassandra');
+$clusterBuilder->withCredentials($authProvider);
+```
+
+For other SASL based authentication methods you'll need to provide/use your 
+own implementation. This can be done by creating a class which implements the 
+`AuthProviderInterface`.
+
+```php
+<?php 
+
+class KeberosProvider implements \CassandraNative\Auth\AuthProviderInterface
+{
+    public function mechanism(): string
+    {
+        return 'java class name';
+    }    
+
+    public function response(): string
+    {
+        return 'i am an initial response';
+    }
+}
+```
+
+The `mechanism` method returns the fully qualified name of the java class 
+cassandra is configured to use. This name can be found in the `authenticator.class_name` 
+directive of the cassandra.yaml config.
+
+The `response` method is called when the first auth challenge is issued. Some 
+auth providers will only require sending this response.
+
+For auth providers that require responding to subsequent authentication challenges 
+the `AuthChallengeProvderInterface` is provided. This interface provides the `challengeResponse` 
+method. This method accepts an `token` parameter which contains the binary representation 
+of a token sent back from the Cassandra node describing how to respond to the auth
+challenge. 
+
+If a provider does not implement the `AuthChallengeProviderInterface` and an auth
+challenge is issued after the first response, an `AuthenticationException` is thrown.
 
 ### Statements
 

@@ -9,7 +9,7 @@ use CassandraNative\SSL\SSLOptions;
 
 class Socket
 {
-    protected bool $persistent;
+    protected bool $persistent = false;
 
     /**
      * @var resource|false
@@ -19,30 +19,23 @@ class Socket
     /**
      * Connect to a Cassandra host
      *
-     * @param ClusterOptions $clusterOptions
+     * @param string $host
+     * @param int $port
+     * @param bool $persistent
+     * @param float $connectTimeout
      * @throws ConnectionException
      */
-    public function connect(ClusterOptions $clusterOptions): void
-    {
-        $this->persistent = $clusterOptions->getPersistentSessions();
-        $hosts = $clusterOptions->getHosts();
-        $hostId = array_rand($hosts); // Connection Pooling what's that?
-        $host = $hosts[$hostId];
-        $port = $clusterOptions->getPort();
-        $connectTimeout = $clusterOptions->getConnectTimeout();
+    public function connect(
+        string $host,
+        int $port,
+        bool $persistent,
+        float $connectTimeout
+    ): void {
         $address = 'tcp://' . $host . ':' . $port;
-
         $connectionFlags = STREAM_CLIENT_CONNECT;
 
-        if ($this->persistent) {
+        if ($persistent) {
             $connectionFlags |= STREAM_CLIENT_PERSISTENT;
-        }
-
-        $options = [];
-        $sslOptions = $clusterOptions->getSSL();
-
-        if ($sslOptions instanceof SSLOptions) {
-            $options['ssl'] = $sslOptions->get();
         }
 
         $stream = @stream_socket_client(
@@ -50,35 +43,64 @@ class Socket
             $errno,
             $errstr,
             $connectTimeout,
-            $connectionFlags,
-            stream_context_create($options)
+            $connectionFlags
         );
 
         if ($stream === false) {
             throw new ConnectionException('Socket connect to ' . $host . ':' . $port . ' failed: ' . '(' . $errno . ') ' . $errstr);
         }
 
-        if ($sslOptions instanceof SSLOptions) {
-            // Persistent connections retain SSL. Check that we already have an SSL enabled connection before trying to
-            // enable one
-            $meta = stream_get_meta_data($stream);
-            if (!isset($meta['crypto'])) {
-                if (!stream_socket_enable_crypto($stream, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
-                    fclose($stream);
-                    throw new ConnectionException('Failed to establish encrypted connection to ' . $host . ':' . $port);
-                }
-            }
-        }
-
-        $requestTimeout = $clusterOptions->getRequestTimeout();
-
-        if ($requestTimeout > 0) {
-            $timeoutSeconds = floor($requestTimeout);
-            $timeoutMicroseconds = ($requestTimeout - $timeoutSeconds) * 1000000;
-            stream_set_timeout($stream, $timeoutSeconds, $timeoutMicroseconds);
-        }
-
         $this->stream = $stream;
+        $this->persistent = $persistent;
+    }
+
+    /**
+     * Enables SSL encrypted connections for the socket session
+     *
+     * @param array $options
+     *
+     * @throws ConnectionException
+     */
+    public function enableSSL(array $options): void
+    {
+        // Persistent connections retain SSL. Check that we already have an SSL enabled connection before trying to
+        // enable one
+        $meta = stream_get_meta_data($this->stream);
+        if (isset($meta['crypto'])) {
+            return;
+        }
+
+        if (!stream_context_set_option($this->stream, ['ssl' => $options])) {
+            fclose($this->stream);
+            throw new ConnectionException('Failed to set SSL encryption options');
+        }
+
+        if (!stream_socket_enable_crypto($this->stream, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+            fclose($this->stream);
+            throw new ConnectionException('Failed to establish an encrypted connection to the Cassandra node');
+        }
+    }
+
+    /**
+     * Sets the read and write timeouts
+     *
+     * @param float $timeout
+     *
+     * @throws ConnectionException
+     */
+    public function setTimeout(float $timeout): void
+    {
+        if ($timeout <= 0) {
+            return;
+        }
+
+        $timeoutSeconds = floor($timeout);
+        $timeoutMicroseconds = ($timeout - $timeoutSeconds) * 1000000;
+
+        if (!stream_set_timeout($this->stream, $timeoutSeconds, $timeoutMicroseconds)) {
+            fclose($this->stream);
+            throw new ConnectionException('Failed to set socket timeout');
+        }
     }
 
     /**

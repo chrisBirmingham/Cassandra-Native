@@ -2,6 +2,7 @@
 
 namespace CassandraNative\Cluster;
 
+use CassandraNative\Auth\AuthProviderInterface;
 use CassandraNative\Compression\CompressorInterface;
 use CassandraNative\SSL\SSLOptions;
 
@@ -14,13 +15,13 @@ class ClusterOptions
      */
     protected array $hosts;
 
-    protected ?string $username;
-
-    protected ?string $password;
+    protected ?AuthProviderInterface $authProvider;
 
     protected float $connectTimeout;
 
     protected float $requestTimeout;
+
+    protected int $attempts;
 
     protected ?SSLOptions $ssl; 
 
@@ -28,42 +29,45 @@ class ClusterOptions
 
     protected bool $persistent;
 
-    protected ?CompressorInterface $compressor;
+    /**
+     * @var CompressorInterface[]
+     */
+    protected array $compressors;
 
     /**
      * @param int $consistency
      * @param string[] $hosts
-     * @param ?string $username
-     * @param ?string $password
+     * @param ?AuthProviderInterface $authProvider
      * @param float $connectTimeout
      * @param float $requestTimeout
+     * @param int $attempts
      * @param ?SSLOptions $ssl
      * @param int $port
      * @param bool $persistent
-     * @param ?CompressorInterface $compressor
+     * @param CompressorInterface[] $compressors
      */
     public function __construct(
         int $consistency,
         array $hosts,
-        ?string $username,
-        #[\SensitiveParameter] ?string $password,
+        ?AuthProviderInterface $authProvider,
         float $connectTimeout,
         float $requestTimeout,
+        int $attempts,
         ?SSLOptions $ssl, 
         int $port,
         bool $persistent,
-        ?CompressorInterface $compressor
+        array $compressors
     ) {
         $this->consistency = $consistency;
         $this->hosts = $hosts;
-        $this->username = $username;
-        $this->password = $password;
+        $this->authProvider = $authProvider;
         $this->connectTimeout = $connectTimeout;
         $this->requestTimeout = $requestTimeout;
+        $this->attempts = $attempts;
         $this->ssl = $ssl;
         $this->port = $port;
         $this->persistent = $persistent;
-        $this->compressor = $compressor;
+        $this->compressors = $compressors;
     }
 
     /**
@@ -83,19 +87,11 @@ class ClusterOptions
     }
 
     /**
-     * @return ?string
+     * @return ?AuthProviderInterface
      */
-    public function getUsername(): ?string
+    public function getAuthProvider(): ?AuthProviderInterface
     {
-        return $this->username;
-    }
-
-    /**
-     * @return ?string
-     */
-    public function getPassword(): ?string
-    {
-        return $this->password;
+        return $this->authProvider;
     }
 
     /**
@@ -112,6 +108,14 @@ class ClusterOptions
     public function getRequestTimeout(): float
     {
         return $this->requestTimeout;
+    }
+
+    /**
+     * @return int
+     */
+    public function getMaxConnectionAttempts(): int
+    {
+        return $this->attempts;
     }
 
     /**
@@ -139,10 +143,10 @@ class ClusterOptions
     }
 
     /**
-     * @return ?CompressorInterface
+     * @return CompressorInterface[]
      */
-    public function getCompressor(): ?CompressorInterface
+    public function getCompressors(): array
     {
-        return $this->compressor;
+        return $this->compressors;
     }
 }
