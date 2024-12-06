@@ -33,7 +33,7 @@ $ composer require intermaterium/cassandra-native
 * Batch Statements
 * Async queries
 * Result Paging
-* Tuples and User Defined Types
+* User Defined Types
 
 ## Usage
 
@@ -212,6 +212,32 @@ $rows = $cassandra->execute($stmt, $values);
 ```
 
 Unlike Simple Statements, you don't need to specify the bound values type.
+
+#### Tuples
+
+Tuples are created via the `Tuple` class. The class accepts a list of lists
+where the first item in each list is the value to insert at the position,
+and the second item is the type of the value.
+
+The order the items are inserted *MUST* be in the same order as the field
+in the tuples definition. If they don't follow the order a `QueryException`
+is thrown with a possibly cryptic error message.
+
+```php
+$address = new Tuple([
+  ['Santa Clara', Cassandra::COLUMNTYPE_TEXT],
+  ['2000 Log Ave', Cassandra::COLUMNTYPE_TEXT],
+  [95054, Cassandra::COLUMNTYPE_INT]
+]);
+
+$cassandra->execute($stmt, [
+    ['7d64dca1-dd4d-4f3c-bec4-6a88fa082a13', Cassandra::COLUMNTYPE_UUID],
+    ['Chris', Cassandra::COLUMNTYPE_TEXT],
+    [$address, Cassandra::COLUMNTYPE_TUPLE]
+]);
+```
+
+Tuples can both be iterated over and indexed.
 
 ## External links
 

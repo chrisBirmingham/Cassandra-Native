@@ -1,7 +1,6 @@
 <?php
 
 //TODO:
-// Implement Tuple
 // Implement UDT
 
 namespace CassandraNative;
@@ -26,6 +25,7 @@ use CassandraNative\SSL\SSLOptions;
 use CassandraNative\Statement\PreparedStatement;
 use CassandraNative\Statement\SimpleStatement;
 use CassandraNative\Statement\StatementInterface;
+use CassandraNative\Type\Tuple;
 
 /**
  * Cassanda Connector
@@ -101,6 +101,7 @@ class Cassandra
     public const COLUMNTYPE_LIST      = 0x0020;
     public const COLUMNTYPE_MAP       = 0x0021;
     public const COLUMNTYPE_SET       = 0x0022;
+    public const COLUMNTYPE_TUPLE     = 0x0031;
 
     protected const OPCODE_ERROR          = 0x00;
     protected const OPCODE_STARTUP        = 0x01;
@@ -818,37 +819,48 @@ class Cassandra
 
             $columnName = $this->popString($body, $bodyOffset);
             $columnType = $this->popShort($body, $bodyOffset);
-            if ($columnType == self::COLUMNTYPE_CUSTOM) {
-                $columnType = $this->popString($body, $bodyOffset);
-                $columnSubType1 = 0;
-                $columnSubType2 = 0;
-            } elseif (($columnType == self::COLUMNTYPE_LIST) || ($columnType == self::COLUMNTYPE_SET)) {
-                $columnSubType1 = $this->popShort($body, $bodyOffset);
-                if ($columnSubType1 == self::COLUMNTYPE_CUSTOM) {
-                    $columnSubType1 = $this->popString($body, $bodyOffset);
-                }
-                $columnSubType2 = 0;
-            } elseif ($columnType == self::COLUMNTYPE_MAP) {
-                $columnSubType1 = $this->popShort($body, $bodyOffset);
-                if ($columnSubType1 == self::COLUMNTYPE_CUSTOM) {
-                    $columnSubType1 = $this->popString($body, $bodyOffset);
-                }
+            $subTypes = [];
 
-                $columnSubType2 = $this->popShort($body, $bodyOffset);
-                if ($columnSubType2 == self::COLUMNTYPE_CUSTOM) {
-                    $columnSubType2 = $this->popString($body, $bodyOffset);
-                }
-            } else {
-                $columnSubType1 = 0;
-                $columnSubType2 = 0;
+            switch ($columnType) {
+                case self::COLUMNTYPE_CUSTOM:
+                    $columnType = $this->popString($body, $bodyOffset);
+                    break;
+                case self::COLUMNTYPE_LIST:
+                case self::COLUMNTYPE_SET:
+                    $subType = $this->popShort($body, $bodyOffset);
+                    if ($subType == self::COLUMNTYPE_CUSTOM) {
+                        $subType = $this->popString($body, $bodyOffset);
+                    }
+
+                    $subTypes[] = $subType;
+                    break;
+                case self::COLUMNTYPE_MAP:
+                    $subType1 = $this->popShort($body, $bodyOffset);
+                    if ($subType1 == self::COLUMNTYPE_CUSTOM) {
+                        $subType1 = $this->popString($body, $bodyOffset);
+                    }
+
+                    $subType2 = $this->popShort($body, $bodyOffset);
+                    if ($subType2 == self::COLUMNTYPE_CUSTOM) {
+                        $subType2 = $this->popString($body, $bodyOffset);
+                    }
+
+                    $subTypes[] = $subType1;
+                    $subTypes[] = $subType2;
+                    break;
+                case self::COLUMNTYPE_TUPLE:
+                    $itemCount = $this->popShort($body, $bodyOffset);
+                    for (; $itemCount; $itemCount--) {
+                        $subTypes[] = $this->popShort($body, $bodyOffset);
+                    }
             }
+
             $columns[] = [
                 'keyspace' => $keyspace,
                 'table' => $table,
                 'name' => $columnName,
                 'type' => $columnType,
-                'subtype1' => $columnSubType1,
-                'subtype2' => $columnSubType2
+                'subTypes' => $subTypes
             ];
         }
         return $columns;
@@ -868,7 +880,6 @@ class Cassandra
     {
         // <metadata><int count><rows_content>
         $columns = $this->parseRowsMetadata($body, $bodyOffset);
-
         $rowsCount = $this->popInt($body, $bodyOffset);
 
         $retval = [];
@@ -879,8 +890,7 @@ class Cassandra
                 $value = $this->unpackValue(
                     $content,
                     $col['type'],
-                    $col['subtype1'],
-                    $col['subtype2']
+                    $col['subTypes']
                 );
 
                 $row[$col['name']] = $value;
@@ -920,6 +930,7 @@ class Cassandra
             self::COLUMNTYPE_INET => $this->packInet($value),
             self::COLUMNTYPE_LIST, self::COLUMNTYPE_SET => $this->packList($value, $subtype1),
             self::COLUMNTYPE_MAP => $this->packMap($value, $subtype1, $subtype2),
+            self::COLUMNTYPE_TUPLE => $this->packTuple($value),
             default => throw new \InvalidArgumentException('Unknown column type ' . $type)
         };
     }
@@ -930,14 +941,14 @@ class Cassandra
      *
      * @param ?string $content Content to unpack.
      * @param int $type        Column type.
-     * @param int $subtype1    Sub column type for list/set or key for map.
-     * @param int $subtype2    Sub column value type for map.
+     * @param array $subtype1  The subtype for values that contain other
+     *                         values. This includes lists, maps and tuples
      *
      * @return mixed The unpacked value.
      *
      * @throws CassandraException
      */
-    protected function unpackValue(?string $content, int $type, int $subtype1 = 0, int $subtype2 = 0): mixed
+    protected function unpackValue(?string $content, int $type, array $subTypes = []): mixed
     {
         if ($content === NULL) {
             return NULL;
@@ -955,8 +966,9 @@ class Cassandra
             self::COLUMNTYPE_UUID, self::COLUMNTYPE_TIMEUUID => $this->unpackUuid($content),
             self::COLUMNTYPE_VARINT => $this->unpackVarInt($content),
             self::COLUMNTYPE_INET => $this->unpackInet($content),
-            self::COLUMNTYPE_LIST, self::COLUMNTYPE_SET => $this->unpackList($content, $subtype1),
-            self::COLUMNTYPE_MAP => $this->unpackMap($content, $subtype1, $subtype2),
+            self::COLUMNTYPE_LIST, self::COLUMNTYPE_SET => $this->unpackList($content, $subTypes[0]),
+            self::COLUMNTYPE_MAP => $this->unpackMap($content, $subTypes[0], $subTypes[1]),
+            self::COLUMNTYPE_TUPLE => $this->unpackTuple($content, $subTypes),
             default => throw new ProtocolException('Unknown column type returned from cassandra ' . $type)
         };
     }
@@ -1379,6 +1391,46 @@ class Cassandra
         }
 
         return $retval;
+    }
+
+    /**
+     * Packs a COLUMNTYPE_TUPLE value to its binary form.
+     *
+     * @param Tuple $tuple
+     *
+     * @return string
+     */
+    protected function packTuple(Tuple $tuple): string
+    {
+        $retval = '';
+
+        foreach ($tuple->fetchAssoc() as $value => $type) {
+            $packedValue = $this->packValue($value, $type);
+            $retval .= $this->packLongString($packedValue);
+        }
+
+        return $retval;
+    }
+
+    /**
+     * Unpacks a COLUMNTYPE_TUPLE from it's binary form
+     *
+     * @param string $content
+     * @param array $subTypes
+     *
+     * @return Tuple
+     */
+    protected function unpackTuple(string $content, array $subTypes): Tuple
+    {
+        $contentOffset = 0;
+        $values = [];
+
+        foreach ($subTypes as $type) {
+            $valueRaw = $this->popLongString($content, $contentOffset);
+            $values[] = [$this->unpackValue($valueRaw, $type), $type];
+        }
+
+        return new Tuple($values);
     }
 
     /**
