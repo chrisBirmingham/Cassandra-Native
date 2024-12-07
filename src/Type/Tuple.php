@@ -4,17 +4,19 @@ namespace CassandraNative\Type;
 
 class Tuple implements \ArrayAccess, \Iterator
 {
-	protected array $values = [];
+    protected array $types;
 
-	protected int $position = 0;
+    protected array $values;
+
+    protected int $position = 0;
 
     /**
-     * @param array $values List of pairs where the first item is the value 
-     *                      to insert and the second is the type of the 
-     *                      value for cassandra 
+     * @param array $types
+     * @param array $values
      */
-    public function __construct(array $values = [])
+    public function __construct(array $types, array $values)
     {
+        $this->types = $types;
         $this->values = $values;
     }
 
@@ -37,9 +39,9 @@ class Tuple implements \ArrayAccess, \Iterator
     /**
      * {@inheritDoc}
      */
-    public function current(): array
+    public function current(): mixed
     {
-        return $this->values[$this->position][0];
+        return $this->values[$this->position];
     }
 
     /**
@@ -106,8 +108,8 @@ class Tuple implements \ArrayAccess, \Iterator
      */
     public function fetchAssoc(): \Generator
     {
-        foreach ($this->values as $v) {
-            yield $v[0] => $v[1];
+        foreach ($this->values as $k => $v) {
+            yield $this->types[$k] => $v;
         }
     }
 }

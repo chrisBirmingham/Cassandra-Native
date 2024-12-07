@@ -26,6 +26,7 @@ use CassandraNative\Statement\PreparedStatement;
 use CassandraNative\Statement\SimpleStatement;
 use CassandraNative\Statement\StatementInterface;
 use CassandraNative\Type\Tuple;
+use CassandraNative\Type\TupleFactory;
 
 /**
  * Cassanda Connector
@@ -1404,7 +1405,7 @@ class Cassandra
     {
         $retval = '';
 
-        foreach ($tuple->fetchAssoc() as $value => $type) {
+        foreach ($tuple->fetchAssoc() as $type => $value) {
             $packedValue = $this->packValue($value, $type);
             $retval .= $this->packLongString($packedValue);
         }
@@ -1427,10 +1428,11 @@ class Cassandra
 
         foreach ($subTypes as $type) {
             $valueRaw = $this->popLongString($content, $contentOffset);
-            $values[] = [$this->unpackValue($valueRaw, $type), $type];
+            $values[] = $this->unpackValue($valueRaw, $type);
         }
 
-        return new Tuple($values);
+        $tupleFactory = new TupleFactory($subTypes);
+        return $tupleFactory->create($values);
     }
 
     /**

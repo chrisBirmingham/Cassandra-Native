@@ -215,20 +215,27 @@ Unlike Simple Statements, you don't need to specify the bound values type.
 
 #### Tuples
 
-Tuples are created via the `Tuple` class. The class accepts a list of lists
-where the first item in each list is the value to insert at the position,
-and the second item is the type of the value.
+Tuples are created via the `TupleFactory` class. You must create a new
+`TupleFactory` for every different type of tuple you're creating.
 
-The order the items are inserted *MUST* be in the same order as the field
-in the tuples definition. If they don't follow the order a `QueryException`
-is thrown with a possibly cryptic error message.
+The factory accepts a list of Cassandra types. These types *MUST* follow
+the same order as they are defined in Cassandra ie if the tuple was created
+with <int, float, text>, you cannot do <int, text, float> otherwise a
+QueryException will be thrown.
+
+To create a tuple from the factory, call the `create` method passing in
+the values for the tuple.
 
 ```php
-$address = new Tuple([
-  ['Santa Clara', Cassandra::COLUMNTYPE_TEXT],
-  ['2000 Log Ave', Cassandra::COLUMNTYPE_TEXT],
-  [95054, Cassandra::COLUMNTYPE_INT]
+$stmt = new SimpleStatement('INSERT INTO users (id, name, address) VALUES (?, ?, ?)');
+
+$addressTupleFactory = new TupleFactory([
+  Cassandra::COLUMNTYPE_TEXT,
+  Cassandra::COLUMNTYPE_TEXT,
+  Cassandra::COLUMNTYPE_INT
 ]);
+
+$address = $addressTupleFactory->create(['Santa Clara', '2000 Log Ave', 95054]);
 
 $cassandra->execute($stmt, [
     ['7d64dca1-dd4d-4f3c-bec4-6a88fa082a13', Cassandra::COLUMNTYPE_UUID],
@@ -238,6 +245,15 @@ $cassandra->execute($stmt, [
 ```
 
 Tuples can both be iterated over and indexed.
+
+```php
+$stmt = new SimpleStatement('SELECT * FROM users');
+$rows = $cassandra->execute($stmt);
+
+foreach ($rows->current()['address'] as $item) {
+  echo $item . PHP_EOL;
+}
+```
 
 ## External links
 
