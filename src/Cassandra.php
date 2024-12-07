@@ -1301,8 +1301,10 @@ class Cassandra
     /**
      * Packs a COLUMNTYPE_LIST value to its binary form.
      *
-     * @param array $value Value to pack.
-     * @param int $subtype Values' Column type.
+     * @param ListType $list Value to pack.
+     * @param array $subtype List containing the type of the List or Sets
+     *                       Values. Only provided if used within a 
+     *                       Prepared Statement
      *
      * @return string Binary form of the value.
      *
@@ -1318,7 +1320,7 @@ class Cassandra
         if (!empty($subTypes) && $listType !== $subTypes[0]) {
             throw new QueryException(
                 sprintf(
-                    "List/Set type doesn't match the type Cassandra expects. Expected %s got %s",
+                    "List/Set type doesn't match the type expected by Cassandra. Expected %s got %s",
                     $this->typeToString($subTypes[0]),
                     $this->typeToString($listType)
                 )
@@ -1337,7 +1339,7 @@ class Cassandra
      * Unpacks a COLUMNTYPE_LIST value from its binary form.
      *
      * @param string $content Content to unpack.
-     * @param int $subtype    Values' Column type.
+     * @param int $subtype    Type of the List or Sets items
      *
      * @return array Unpacked value.
      *
@@ -1361,9 +1363,10 @@ class Cassandra
     /**
      * Packs a COLUMNTYPE_MAP value to its binary form.
      *
-     * @param array $value  Value to pack.
-     * @param int $subtype1 Keys' column type.
-     * @param int $subtype2 Values' column type.
+     * @param MapType $map    Value to pack.
+     * @param array $subTypes List containing the type of the Maps keys and
+     *                        Values. Only provided if used within a
+     *                        Prepared Statement
      *
      * @return string Binary form of the value.
      *
@@ -1384,7 +1387,7 @@ class Cassandra
             if ($keyType !== $actualKeyType) {
                 throw new QueryException(
                     sprintf(
-                        "Map key type doesn't match the type Cassandra expects. Expected %s got %s",
+                        "Map key type doesn't match the type expected by Cassandra. Expected %s got %s",
                         $this->typeToString($actualValueType),
                         $this->typeToString($valueType)
                     )
@@ -1394,7 +1397,7 @@ class Cassandra
             if ($valueType !== $actualValueType) {
                 throw new QueryException(
                     sprintf(
-                        "Map value type doesn't match the type Cassandra expects. Expected %s got %s",
+                        "Map value type doesn't match the type expected by Cassandra. Expected %s got %s",
                         $this->typeToString($actualValueType),
                         $this->typeToString($valueType)
                     )
@@ -1416,8 +1419,8 @@ class Cassandra
      * Unpacks a COLUMNTYPE_MAP value from its binary form.
      *
      * @param string $content Content to unpack.
-     * @param int $subtype1   Keys' column type.
-     * @param int $subtype2   Values' column type.
+     * @param int $keyType    Type of the Maps keys
+     * @param int $valueType  Type of the Maps values
      *
      * @return MapType Unpacked value.
      *
@@ -1445,9 +1448,14 @@ class Cassandra
     /**
      * Packs a COLUMNTYPE_TUPLE value to its binary form.
      *
-     * @param TupleType $tuple
+     * @param TupleType $tuple The value to pack
+     * @param array $subTypes  List of types for each item within the
+     *                         Tuple. Only available if used within a 
+     *                         Prepared Statement
      *
      * @return string
+     *
+     * @throws \InvalidArgumentException
      */
     protected function packTuple(TupleType $tuple, array $subTypes): string
     {
@@ -1457,7 +1465,17 @@ class Cassandra
         // Prepared statements return the types of the tuple in the
         // correct order. We can use this to check the user is sending
         // the right types in the right order upfront
-        if (!empty($subTypes)) {
+        if (!empty($subTypes) && ($types !== $subTypes) {
+            $typesStr = array_map([$this, 'typeToString'], $types);
+            $subTypesStr = array_map([$this, 'typeToString'], $subTypes);
+
+            throw new QueryException(
+                sprintf(
+                    "Tuple values doesn't match the types and/or order expected by Cassandra. Expected %s, got %s",
+                    implode(', ', $subTypesStr),
+                    implode(', ', $typesStr)
+                )
+            );
         }
 
         foreach ($tuple as $i => $value) {
@@ -1472,7 +1490,8 @@ class Cassandra
      * Unpacks a COLUMNTYPE_TUPLE from it's binary form
      *
      * @param string $content
-     * @param array $subTypes
+     * @param array $subTypes List of types for each item within the
+     *                        Tuple
      *
      * @return TupleType
      */
@@ -1792,8 +1811,10 @@ class Cassandra
     }
 
     /**
+     * Returns the string name for an internal Cassandra Type
+     *
      * @param int $type
-     * 
+     *
      * @return string
      */
     protected function typeToString(int $type): string
