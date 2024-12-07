@@ -4,52 +4,52 @@ namespace CassandraNative\Type;
 
 class MapType implements \ArrayAccess, \Countable, \Iterator
 {
-	protected int $keyType;
+    protected int $keyType;
 
-	protected int $valueType;
+    protected int $valueType;
 
-	protected array $values;
+    protected array $values;
 
-	/**
-	 * @param int $keyType
-	 * @param int $valueType
-	 * @param array $values
-	 */
-	public function __construct(
-		int $keyType,
-		int $valueType,
-		array $values
-	) {
-		$this->keyType = $keyType;
-		$this->valueType = $valueType;
-		$this->values = $values;
-	}
+    /**
+     * @param int $keyType
+     * @param int $valueType
+     * @param array $values
+     */
+    public function __construct(
+        int $keyType,
+        int $valueType,
+        array $values
+    ) {
+        $this->keyType = $keyType;
+        $this->valueType = $valueType;
+        $this->values = $values;
+    }
 
-	/**
-	 * @return int
-	 */
-	public function getKeyType(): int
-	{
-		return $this->keyType;
-	}
+    /**
+     * @return int
+     */
+    public function getKeyType(): int
+    {
+        return $this->keyType;
+    }
 
-	/**
-	 * @return int
-	 */
-	public function getValueType(): int
-	{
-		return $this->valueType;
-	}
+    /**
+     * @return int
+     */
+    public function getValueType(): int
+    {
+        return $this->valueType;
+    }
 
-	/**
-	 * {@inheritdoc}
-	 */
-	public function count(): int
-	{
-		return count($this->values);
-	}
+    /**
+     * {@inheritdoc}
+     */
+    public function count(): int
+    {
+        return count($this->values);
+    }
 
-	/**
+    /**
      * {@inheritDoc}
      */
     public function rewind(): void
