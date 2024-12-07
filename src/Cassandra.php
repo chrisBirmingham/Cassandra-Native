@@ -25,7 +25,11 @@ use CassandraNative\SSL\SSLOptions;
 use CassandraNative\Statement\PreparedStatement;
 use CassandraNative\Statement\SimpleStatement;
 use CassandraNative\Statement\StatementInterface;
-use CassandraNative\Type\Tuple;
+use CassandraNative\Type\ListFactory;
+use CassandraNative\Type\ListType;
+use CassandraNative\Type\MapType;
+use CassandraNative\Type\MapFactory;
+use CassandraNative\Type\TupleType;
 use CassandraNative\Type\TupleFactory;
 
 /**
@@ -521,8 +525,7 @@ class Cassandra
             $data = $this->packValue(
                 $value,
                 $column['type'],
-                $column['subtype1'],
-                $column['subtype2']
+                $column['subTypes']
             );
 
             $frame .= $this->packLongString($data);
@@ -758,8 +761,7 @@ class Cassandra
                 foreach ($metadata as $column) {
                     $columns[$column['name']] = [
                         'type' => $column['type'],
-                        'subtype1' => $column['subtype1'],
-                        'subtype2' => $column['subtype2']
+                        'subTypes' => $column['subTypes']
                     ];
                 }
 
@@ -906,16 +908,16 @@ class Cassandra
      * Packs a value to its binary form based on a column type. Used for
      * prepared statement.
      *
-     * @param mixed $value  Value to pack.
-     * @param int $type     Column type.
-     * @param int $subtype1 Sub column type for list/set or key for map.
-     * @param int $subtype2 Sub column value type for map.
+     * @param mixed $value    Value to pack.
+     * @param int $type       Column type.
+     * @param array $subTypes The subtype for values that contain other
+     *                        values. This includes lists, maps and tuples
      *
      * @return string Binary form of the value.
      *
      * @throws \InvalidArgumentException
      */
-    protected function packValue(mixed $value, int $type, int $subtype1 = 0, int $subtype2 = 0): string
+    protected function packValue(mixed $value, int $type, array $subTypes = []): string
     {
         return match ($type) {
             self::COLUMNTYPE_CUSTOM, self::COLUMNTYPE_BLOB => $this->packBlob($value),
@@ -929,9 +931,9 @@ class Cassandra
             self::COLUMNTYPE_UUID, self::COLUMNTYPE_TIMEUUID => $this->packUuid($value),
             self::COLUMNTYPE_VARINT => $this->packVarInt($value),
             self::COLUMNTYPE_INET => $this->packInet($value),
-            self::COLUMNTYPE_LIST, self::COLUMNTYPE_SET => $this->packList($value, $subtype1),
-            self::COLUMNTYPE_MAP => $this->packMap($value, $subtype1, $subtype2),
-            self::COLUMNTYPE_TUPLE => $this->packTuple($value),
+            self::COLUMNTYPE_LIST, self::COLUMNTYPE_SET => $this->packList($value, $subTypes),
+            self::COLUMNTYPE_MAP => $this->packMap($value, $subTypes),
+            self::COLUMNTYPE_TUPLE => $this->packTuple($value, $subTypes),
             default => throw new \InvalidArgumentException('Unknown column type ' . $type)
         };
     }
@@ -1306,12 +1308,25 @@ class Cassandra
      *
      * @throws \InvalidArgumentException
      */
-    protected function packList(array $value, int $subtype): string
+    protected function packList(ListType $list, array $subTypes): string
     {
-        $retval = $this->packInt(count($value));
+        $retval = $this->packInt(count($list));
+        $listType = $list->getType();
 
-        foreach ($value as $item) {
-            $itemPacked = $this->packValue($item, $subtype);
+        // Prepared statements return the type of the list or set. We can
+        // use this to check if the user provided the right types upfront
+        if (!empty($subTypes) && $listType !== $subTypes[0]) {
+            throw new QueryException(
+                sprintf(
+                    "List/Set type doesn't match the type Cassandra expects. Expected %s got %s",
+                    $this->typeToString($subTypes[0]),
+                    $this->typeToString($listType)
+                )
+            );
+        }
+
+        foreach ($list as $item) {
+            $itemPacked = $this->packValue($item, $listType);
             $retval .= $this->packLongString($itemPacked);
         }
 
@@ -1328,17 +1343,19 @@ class Cassandra
      *
      * @throws CassandraException
      */
-    protected function unpackList(string $content, int $subtype): array
+    protected function unpackList(string $content, int $subtype): ListType
     {
         $contentOffset = 0;
         $itemsCount = $this->popInt($content, $contentOffset);
         $retval = [];
+
         for (; $itemsCount; $itemsCount--) {
             $subcontent = $this->popLongString($content, $contentOffset);
             $retval[] = $this->unpackValue($subcontent, $subtype);
         }
 
-        return $retval;
+        $listFactory = new ListFactory($subtype);
+        return $listFactory->create($retval);
     }
 
     /**
@@ -1352,13 +1369,42 @@ class Cassandra
      *
      * @throws \InvalidArgumentException
      */
-    protected function packMap(array $value, int $subtype1, int $subtype2): string
+    protected function packMap(MapType $map, array $subTypes): string
     {
-        $retval = $this->packInt(count($value));
+        $retval = $this->packInt(count($map));
+        $keyType = $map->getKeyType();
+        $valueType = $map->getValueType();
 
-        foreach ($value as $key => $item) {
-            $keyPacked = $this->packValue($key, $subtype1);
-            $itemPacked = $this->packValue($item, $subtype2);
+        // Prepared statements return the key and value type so we can 
+        // check if the user has provided the correct types upfront
+        if (!empty($subTypes)) {
+            $actualKeyType = $subTypes[0];
+            $actualValueType = $subTypes[1];
+
+            if ($keyType !== $actualKeyType) {
+                throw new QueryException(
+                    sprintf(
+                        "Map key type doesn't match the type Cassandra expects. Expected %s got %s",
+                        $this->typeToString($actualValueType),
+                        $this->typeToString($valueType)
+                    )
+                );
+            }
+
+            if ($valueType !== $actualValueType) {
+                throw new QueryException(
+                    sprintf(
+                        "Map value type doesn't match the type Cassandra expects. Expected %s got %s",
+                        $this->typeToString($actualValueType),
+                        $this->typeToString($valueType)
+                    )
+                );
+            }
+        }
+
+        foreach ($map as $key => $item) {
+            $keyPacked = $this->packValue($key, $keyType);
+            $itemPacked = $this->packValue($item, $valueType);
             $retval .= $this->packLongString($keyPacked) .
                 $this->packLongString($itemPacked);
         }
@@ -1373,40 +1419,49 @@ class Cassandra
      * @param int $subtype1   Keys' column type.
      * @param int $subtype2   Values' column type.
      *
-     * @return array Unpacked value.
+     * @return MapType Unpacked value.
      *
      * @throws CassandraException
      */
-    protected function unpackMap(string $content, int $subtype1, int $subtype2): array
+    protected function unpackMap(string $content, int $keyType, int $valueType): MapType
     {
         $contentOffset = 0;
         $itemsCount = $this->popInt($content, $contentOffset);
         $retval = [];
+
         for (; $itemsCount; $itemsCount--) {
             $subKeyRaw = $this->popLongString($content, $contentOffset);
             $subValueRaw = $this->popLongString($content, $contentOffset);
 
-            $subKey = $this->unpackValue($subKeyRaw, $subtype1);
-            $subValue = $this->unpackValue($subValueRaw, $subtype2);
+            $subKey = $this->unpackValue($subKeyRaw, $keyType);
+            $subValue = $this->unpackValue($subValueRaw, $valueType);
             $retval[$subKey] = $subValue;
         }
 
-        return $retval;
+        $mapFactory = new MapFactory($keyType, $valueType);
+        return $mapFactory->create($retval);
     }
 
     /**
      * Packs a COLUMNTYPE_TUPLE value to its binary form.
      *
-     * @param Tuple $tuple
+     * @param TupleType $tuple
      *
      * @return string
      */
-    protected function packTuple(Tuple $tuple): string
+    protected function packTuple(TupleType $tuple, array $subTypes): string
     {
         $retval = '';
+        $types = $tuple->getTypes();
 
-        foreach ($tuple->fetchAssoc() as $type => $value) {
-            $packedValue = $this->packValue($value, $type);
+        // Prepared statements return the types of the tuple in the
+        // correct order. We can use this to check the user is sending
+        // the right types in the right order upfront
+        if (!empty($subTypes)) {
+        }
+
+        foreach ($tuple as $i => $value) {
+            $packedValue = $this->packValue($value, $types[$i]);
             $retval .= $this->packLongString($packedValue);
         }
 
@@ -1419,9 +1474,9 @@ class Cassandra
      * @param string $content
      * @param array $subTypes
      *
-     * @return Tuple
+     * @return TupleType
      */
-    protected function unpackTuple(string $content, array $subTypes): Tuple
+    protected function unpackTuple(string $content, array $subTypes): TupleType
     {
         $contentOffset = 0;
         $values = [];
@@ -1734,5 +1789,38 @@ class Cassandra
         }
 
         return $retval;
+    }
+
+    /**
+     * @param int $type
+     * 
+     * @return string
+     */
+    protected function typeToString(int $type): string
+    {
+        return match ($type) {
+            self::COLUMNTYPE_CUSTOM => 'custom',
+            self::COLUMNTYPE_BLOB => 'blob',
+            self::COLUMNTYPE_ASCII => 'ascii',
+            self::COLUMNTYPE_TEXT => 'text',
+            self::COLUMNTYPE_VARCHAR => 'varchar',
+            self::COLUMNTYPE_BIGINT => 'bigint',
+            self::COLUMNTYPE_COUNTER => 'counter',
+            self::COLUMNTYPE_TIMESTAMP => 'timestamp',
+            self::COLUMNTYPE_BOOLEAN => 'boolean',
+            self::COLUMNTYPE_DECIMAL => 'decimal',
+            self::COLUMNTYPE_DOUBLE => 'double',
+            self::COLUMNTYPE_FLOAT => 'float',
+            self::COLUMNTYPE_INT => 'int',
+            self::COLUMNTYPE_UUID => 'uuid',
+            self::COLUMNTYPE_TIMEUUID => 'timeuuid',
+            self::COLUMNTYPE_VARINT => 'varint',
+            self::COLUMNTYPE_INET => 'inet',
+            self::COLUMNTYPE_LIST => 'list',
+            self::COLUMNTYPE_SET => 'set',
+            self::COLUMNTYPE_MAP => 'map',
+            self::COLUMNTYPE_TUPLE => 'tuple',
+            default => 'Unknown column type ' . $type
+        };
     }
 }

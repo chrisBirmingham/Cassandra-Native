@@ -2,14 +2,14 @@
 
 namespace CassandraNative\Type;
 
-use Exception;
+use CassandraNative\Cassandra;
 
 class TupleFactory
 {
 	protected array $types;
 
 	/**
-	 * @param array $types
+	 * @param array $types List of types for each item inside the Tuple
 	 *
 	 * @throws \InvalidArgumentException
 	 */
@@ -19,17 +19,23 @@ class TupleFactory
 			throw new \InvalidArgumentException('Types cannot be empty');
 		}
 
+		foreach ($types as $type) {
+			if ($type < Cassandra::COLUMNTYPE_CUSTOM || $type > Cassandra::COLUMNTYPE_TUPLE) {
+				throw new \InvalidArgumentException('Tuple types must be one of Cassandra::COLUMNTYPE_*');
+			}
+		}
+
 		$this->types = $types;
 	}
 
 	/**
 	 * @param array $values List of values for the tuple.
 	 *
-	 * @return Tuple
+	 * @return TupleType
 	 *
 	 * @throws \InvalidArgumentException
 	 */
-	public function create(array $values): Tuple
+	public function create(array $values): TupleType
 	{
 		$typeCount = count($this->types);
 		$valuesCount = count($values);
@@ -38,6 +44,6 @@ class TupleFactory
 			throw new \InvalidArgumentException("Number of provided tuple values does not match expected number. Expected $typeCount got $valuesCount");
 		}
 
-		return new Tuple($this->types, $values);
+		return new TupleType($this->types, $values);
 	}
 }

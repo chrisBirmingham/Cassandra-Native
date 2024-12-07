@@ -2,13 +2,11 @@
 
 namespace CassandraNative\Type;
 
-class Tuple implements \ArrayAccess, \Iterator
+class TupleType implements \ArrayAccess, \Countable, \Iterator
 {
     protected array $types;
 
     protected array $values;
-
-    protected int $position = 0;
 
     /**
      * @param array $types
@@ -20,8 +18,16 @@ class Tuple implements \ArrayAccess, \Iterator
         $this->values = $values;
     }
 
-	/**
-     * @return int
+    /**
+     * @return array
+     */ 
+    public function getTypes(): array
+    {
+        return $this->types;
+    }
+
+    /**
+     * {@inheritDoc}
      */
     public function count(): int
     {
@@ -33,7 +39,7 @@ class Tuple implements \ArrayAccess, \Iterator
      */
     public function rewind(): void
     {
-        $this->position = 0;
+        reset($this->values);
     }
 
     /**
@@ -41,7 +47,7 @@ class Tuple implements \ArrayAccess, \Iterator
      */
     public function current(): mixed
     {
-        return $this->values[$this->position];
+        return current($this->values);
     }
 
     /**
@@ -49,7 +55,7 @@ class Tuple implements \ArrayAccess, \Iterator
      */
     public function key(): int
     {
-        return $this->position;
+        return key($this->values);
     }
 
     /**
@@ -57,7 +63,7 @@ class Tuple implements \ArrayAccess, \Iterator
      */
     public function next(): void
     {
-        $this->position++;
+        next($this->values);
     }
 
     /**
@@ -65,10 +71,10 @@ class Tuple implements \ArrayAccess, \Iterator
      */
     public function valid(): bool
     {
-        return isset($this->values[$this->position]);
+        return key($this->values) !== null;
     }
 
-        /**
+    /**
      * {@inheritDoc}
      */
     public function offsetExists(mixed $offset): bool
@@ -98,18 +104,5 @@ class Tuple implements \ArrayAccess, \Iterator
     public function offsetUnset(mixed $offset): void
     {
         unset($this->values[$offset]);
-    }
-
-    /**
-     * Yields the tuple values as a pair. The first item is the type of
-     * the variable, the second is the value
-     * 
-     * @return Generator<array>
-     */
-    public function fetchAssoc(): \Generator
-    {
-        foreach ($this->values as $k => $v) {
-            yield $this->types[$k] => $v;
-        }
     }
 }
