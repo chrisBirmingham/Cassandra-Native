@@ -1,8 +1,5 @@
 <?php
 
-//TODO:
-// Implement UDT
-
 namespace CassandraNative;
 
 use CassandraNative\Auth\AuthChallengeProviderInterface;
@@ -31,11 +28,13 @@ use CassandraNative\Type\MapType;
 use CassandraNative\Type\MapFactory;
 use CassandraNative\Type\TupleType;
 use CassandraNative\Type\TupleFactory;
+use CassandraNative\Type\UDTFactory;
+use CassandraNative\Type\UDTType;
 
 /**
  * Cassanda Connector
  *
- * A native Cassandra connector for PHP based on the CQL binary protocol v3,
+ * A native Cassandra connector for PHP based on the CQL binary protocol v4,
  * without the need for any external extensions.
  *
  * Requires PHP version >8, and Cassandra >1.2.
@@ -106,6 +105,7 @@ class Cassandra
     public const COLUMNTYPE_LIST      = 0x0020;
     public const COLUMNTYPE_MAP       = 0x0021;
     public const COLUMNTYPE_SET       = 0x0022;
+    public const COLUMNTYPE_UDT       = 0x0030;
     public const COLUMNTYPE_TUPLE     = 0x0031;
 
     protected const OPCODE_ERROR          = 0x00;
@@ -181,8 +181,7 @@ class Cassandra
     }
 
     /**
-     * Establishes a connection with a cassandra host based on options provided
-     * by the ClusterBuilder
+     * Establishes a connection with a cassandra host based on options provided by the ClusterBuilder
      * 
      * @param ClusterOptions $clusterOptions
      * 
@@ -419,8 +418,7 @@ class Cassandra
     }
 
     /**
-     * Connects the client to the specified keyspace. Same as using a 
-     * USE $keyspace query
+     * Connects the client to the specified keyspace. Same as using a USE $keyspace query
      * 
      * @param string $keyspace
      * 
@@ -444,13 +442,11 @@ class Cassandra
      * Queries the database using the given CQL.
      *
      * @param StatementInterface $stmt The query to run.
-     * @param array $values            Values to bind in a sequential or key=>value format,
-     *                                 where key is the column's name.
+     * @param array $values            Values to bind in a sequential or key=>value format, where key is the column's name.
      * @param ?int $consistency        Consistency level for the operation.
      * 
-     * @return Rows Result of the query. Might be an array of rows (for
-     *              SELECT), or the operation's result (for USE, CREATE,
-     *              ALTER, UPDATE).
+     * @return Rows Result of the query. Might be an array of rows (for SELECT), or the operation's result
+     *              (for USE, CREATE, ALTER, UPDATE).
      * 
      * @throws CassandraException
      */
@@ -492,14 +488,12 @@ class Cassandra
     /**
      * Executes a prepared statement.
      *
-     * @param PreparedStatement $stmt The prepared statement as returned from the
-     *                                prepare method.
+     * @param PreparedStatement $stmt The prepared statement as returned from the prepare method.
      * @param array $values           Bind values for the prepared statement 
      * @param int $consistency        Consistency level for the operation.
      *
-     * @return array Result of the execution. Might be an array of rows (for
-     *               SELECT), or the operation's result (for USE, CREATE,
-     *               ALTER, UPDATE).
+     * @return array Result of the execution. Might be an array of rows (for SELECT), or the operation's result
+     *              (for USE, CREATE, ALTER, UPDATE).
      *
      * @throws CassandraException
      */
@@ -525,7 +519,8 @@ class Cassandra
             $data = $this->packValue(
                 $value,
                 $column['type'],
-                $column['subTypes']
+                $column['subTypes'],
+                $column['options']
             );
 
             $frame .= $this->packLongString($data);
@@ -542,9 +537,8 @@ class Cassandra
      * @param array $values         Values to bind to the statement being run.
      * @param int $consistency      Consistency level for the operation.
      * 
-     * @return array Result of the execution. Might be an array of rows (for
-     *               SELECT), or the operation's result (for USE, CREATE,
-     *               ALTER, UPDATE).
+     * @return array Result of the execution. Might be an array of rows (for SELECT), or the operation's result
+     *               (for USE, CREATE, ALTER, UPDATE).
      * 
      * @throws CassandraException
      */
@@ -587,9 +581,8 @@ class Cassandra
      * @param int    $opcode Frame's opcode.
      * @param string $body   Frame's body.
      *
-     * @return array Result of the request. Might be an array of rows (for
-     *               SELECT), or the operation's result (for USE, CREATE,
-     *               ALTER, UPDATE).
+     * @return array Result of the request. Might be an array of rows (for SELECT), or the operation's result
+     *               (for USE, CREATE, ALTER, UPDATE).
      *
      * @throws CassandraException
      */
@@ -652,8 +645,7 @@ class Cassandra
     }
 
     /**
-     * Parses a returned Frame send back by cassandra. Checks for any errors returned 
-     * and throws an exception
+     * Parses a returned Frame send back by cassandra. Checks for any errors returned and throws an exception
      * 
      * @param string $header The returned frame header
      * @param string $body   The returned frame body
@@ -732,9 +724,8 @@ class Cassandra
      *
      * @param string $body Frame's body
      *
-     * @return array       Parsed frame. Might be an array of rows (for SELECT),
-     *                     or the operation's result (for USE, CREATE, ALTER,
-     *                     UPDATE).
+     * @return array       Parsed frame. Might be an array of rows (for SELECT), or the operation's result
+     *                     (for USE, CREATE, ALTER, UPDATE).
      *
      * @throws CassandraException
      */
@@ -761,7 +752,8 @@ class Cassandra
                 foreach ($metadata as $column) {
                     $columns[$column['name']] = [
                         'type' => $column['type'],
-                        'subTypes' => $column['subTypes']
+                        'subTypes' => $column['subTypes'],
+                        'options' => $column['options']
                     ];
                 }
 
@@ -785,8 +777,8 @@ class Cassandra
     }
 
     /**
-     * Parses a RESULT Rows metadata (also used for RESULT Prepared), starting
-     * from the offset, and advancing it in the process.
+     * Parses a RESULT Rows metadata (also used for RESULT Prepared), starting from the offset, and advancing it in the
+     * process.
      *
      * @param string $body    Metadata body.
      * @param int $bodyOffset Metadata body offset to start from.
@@ -823,6 +815,7 @@ class Cassandra
             $columnName = $this->popString($body, $bodyOffset);
             $columnType = $this->popShort($body, $bodyOffset);
             $subTypes = [];
+            $options = [];
 
             switch ($columnType) {
                 case self::COLUMNTYPE_CUSTOM:
@@ -851,6 +844,20 @@ class Cassandra
                     $subTypes[] = $subType1;
                     $subTypes[] = $subType2;
                     break;
+                case self::COLUMNTYPE_UDT:
+                    $udtKeyspace = $this->popString($body, $bodyOffset);
+                    $udtName = $this->popString($body, $bodyOffset);
+                    $itemCount = $this->popShort($body, $bodyOffset);
+
+                    for (; $itemCount; $itemCount--) {
+                        $subName = $this->popString($body, $bodyOffset);
+                        $value = $this->popShort($body, $bodyOffset);
+                        $subTypes[$subName] = $value;
+                    }
+
+                    $options['name'] = $udtName;
+                    $options['keyspace'] = $udtKeyspace;
+                    break;
                 case self::COLUMNTYPE_TUPLE:
                     $itemCount = $this->popShort($body, $bodyOffset);
                     for (; $itemCount; $itemCount--) {
@@ -863,7 +870,8 @@ class Cassandra
                 'table' => $table,
                 'name' => $columnName,
                 'type' => $columnType,
-                'subTypes' => $subTypes
+                'subTypes' => $subTypes,
+                'options' => $options
             ];
         }
         return $columns;
@@ -905,19 +913,18 @@ class Cassandra
     }
 
     /**
-     * Packs a value to its binary form based on a column type. Used for
-     * prepared statement.
+     * Packs a value to its binary form based on a column type
      *
      * @param mixed $value    Value to pack.
      * @param int $type       Column type.
-     * @param array $subTypes The subtype for values that contain other
-     *                        values. This includes lists, maps and tuples
+     * @param array $subTypes The subtype for values that contain other values. This includes lists, maps and tuples
      *
      * @return string Binary form of the value.
      *
      * @throws \InvalidArgumentException
+     * @throws CassandraException
      */
-    protected function packValue(mixed $value, int $type, array $subTypes = []): string
+    protected function packValue(mixed $value, int $type, array $subTypes = [], array $options = []): string
     {
         return match ($type) {
             self::COLUMNTYPE_CUSTOM, self::COLUMNTYPE_BLOB => $this->packBlob($value),
@@ -933,25 +940,24 @@ class Cassandra
             self::COLUMNTYPE_INET => $this->packInet($value),
             self::COLUMNTYPE_LIST, self::COLUMNTYPE_SET => $this->packList($value, $subTypes),
             self::COLUMNTYPE_MAP => $this->packMap($value, $subTypes),
+            self::COLUMNTYPE_UDT => $this->packUDT($value, $options['name'] ?? null, $subTypes),
             self::COLUMNTYPE_TUPLE => $this->packTuple($value, $subTypes),
             default => throw new \InvalidArgumentException('Unknown column type ' . $type)
         };
     }
 
     /**
-     * Unpacks a value from its binary form based on a column type. Used for
-     * parsing rows.
+     * Unpacks a value from its binary form based on a column type. Used for parsing rows.
      *
      * @param ?string $content Content to unpack.
      * @param int $type        Column type.
-     * @param array $subtype1  The subtype for values that contain other
-     *                         values. This includes lists, maps and tuples
+     * @param array $subTypes  The subtype for values that contain other values. This includes lists, maps and tuples
      *
      * @return mixed The unpacked value.
      *
      * @throws CassandraException
      */
-    protected function unpackValue(?string $content, int $type, array $subTypes = []): mixed
+    protected function unpackValue(?string $content, int $type, array $subTypes = [], array $options = []): mixed
     {
         if ($content === NULL) {
             return NULL;
@@ -971,6 +977,7 @@ class Cassandra
             self::COLUMNTYPE_INET => $this->unpackInet($content),
             self::COLUMNTYPE_LIST, self::COLUMNTYPE_SET => $this->unpackList($content, $subTypes[0]),
             self::COLUMNTYPE_MAP => $this->unpackMap($content, $subTypes[0], $subTypes[1]),
+            self::COLUMNTYPE_UDT => $this->unpackUDT($content, $options['name'], $subTypes),
             self::COLUMNTYPE_TUPLE => $this->unpackTuple($content, $subTypes),
             default => throw new ProtocolException('Unknown column type returned from cassandra ' . $type)
         };
@@ -1301,14 +1308,14 @@ class Cassandra
     /**
      * Packs a COLUMNTYPE_LIST value to its binary form.
      *
-     * @param ListType $list Value to pack.
-     * @param array $subtype List containing the type of the List or Sets
-     *                       Values. Only provided if used within a 
-     *                       Prepared Statement
+     * @param ListType $list  Value to pack.
+     * @param array $subTypes List containing the type of the List or Sets Values. Only provided if used within a
+     *                        Prepared Statement
      *
      * @return string Binary form of the value.
      *
      * @throws \InvalidArgumentException
+     * @throws CassandraException
      */
     protected function packList(ListType $list, array $subTypes): string
     {
@@ -1341,7 +1348,7 @@ class Cassandra
      * @param string $content Content to unpack.
      * @param int $subtype    Type of the List or Sets items
      *
-     * @return array Unpacked value.
+     * @return ListType Unpacked value.
      *
      * @throws CassandraException
      */
@@ -1364,13 +1371,13 @@ class Cassandra
      * Packs a COLUMNTYPE_MAP value to its binary form.
      *
      * @param MapType $map    Value to pack.
-     * @param array $subTypes List containing the type of the Maps keys and
-     *                        Values. Only provided if used within a
+     * @param array $subTypes List containing the type of the Maps keys and Values. Only provided if used within a
      *                        Prepared Statement
      *
      * @return string Binary form of the value.
      *
      * @throws \InvalidArgumentException
+     * @throws CassandraException
      */
     protected function packMap(MapType $map, array $subTypes): string
     {
@@ -1446,16 +1453,93 @@ class Cassandra
     }
 
     /**
+     * Packs a COLUMNTYPE_UDT value to its binary form.
+     *
+     * @param UDTType $udt    Value to pack
+     * @param ?string $name   The name of the UDT. Only known if used within a prepared statement
+     * @param array $subTypes List of pairs of the field and type of the UDT. Only known if used within a prepared
+     *                        Statement
+     *
+     * @return string
+     *
+     * @throws CassandraException
+     */
+    protected function packUDT(UDTType $udt, ?string $name, array $subTypes): string
+    {
+        $retval = '';
+        $types = $udt->getFields();
+
+        if ($name !== null) {
+            if ($udt->getName() !== $name) {
+                throw new QueryException("Name of UDT doesn't match the name expected by Cassandra. Expected $name, got {$udt->getName()}");
+            }
+
+            if ($types !== $subTypes) {
+                $expected = [];
+                $actual = [];
+
+                foreach ($subTypes as $field => $type) {
+                    $expected[] = "$field <{$this->typeToString($type)}>";
+                }
+
+                foreach ($types as $field => $type) {
+                    $actual[] = "$field <{$this->typeToString($type)}>";
+                }
+
+                throw new QueryException(
+                    sprintf(
+                        "UDT doesn't match the format expected by Cassandra. Expected %s, got %s",
+                        implode(', ', $expected),
+                        implode(', ', $actual)
+                    )
+                );
+            }
+        }
+
+        foreach ($udt as $field => $value) {
+            $type = $types[$field];
+            $retval .= $this->packValue($value, $type);
+        }
+
+        return $retval;
+    }
+
+    /**
+     * Unpacks a COLUMNTYPE_UDT from its binary form
+     *
+     * @param string $content
+     * @param string $name
+     * @param array $fields
+     *
+     * @return UDTType
+     *
+     * @throws CassandraException
+     */
+    protected function unpackUDT(string $content, string $name, array $fields): UDTType
+    {
+        $contentOffset = 0;
+        $values = [];
+
+        foreach ($fields as $type) {
+            $valueRaw = $this->popLongString($content, $contentOffset);
+            $values[] = $this->unpackValue($valueRaw, $type);
+        }
+
+        $udtFactory = new UDTFactory($name, $fields);
+        return $udtFactory->create($values);
+    }
+
+    /**
      * Packs a COLUMNTYPE_TUPLE value to its binary form.
      *
      * @param TupleType $tuple The value to pack
-     * @param array $subTypes  List of types for each item within the
-     *                         Tuple. Only available if used within a 
-     *                         Prepared Statement
+     * @param array $subTypes  List of types for each item within the Tuple. Only available if used within a Prepared
+     *                         Statement
      *
      * @return string
      *
      * @throws \InvalidArgumentException
+     * @throws CassandraException
      */
     protected function packTuple(TupleType $tuple, array $subTypes): string
     {
@@ -1465,13 +1549,13 @@ class Cassandra
         // Prepared statements return the types of the tuple in the
         // correct order. We can use this to check the user is sending
         // the right types in the right order upfront
-        if (!empty($subTypes) && ($types !== $subTypes) {
+        if (!empty($subTypes) && $types !== $subTypes) {
             $typesStr = array_map([$this, 'typeToString'], $types);
             $subTypesStr = array_map([$this, 'typeToString'], $subTypes);
 
             throw new QueryException(
                 sprintf(
-                    "Tuple values doesn't match the types and/or order expected by Cassandra. Expected %s, got %s",
+                    "Tuple values doesn't match the format expected by Cassandra. Expected %s, got %s",
                     implode(', ', $subTypesStr),
                     implode(', ', $typesStr)
                 )
@@ -1487,13 +1571,16 @@ class Cassandra
     }
 
     /**
-     * Unpacks a COLUMNTYPE_TUPLE from it's binary form
+     * Unpacks a COLUMNTYPE_TUPLE from its binary form
      *
      * @param string $content
      * @param array $subTypes List of types for each item within the
      *                        Tuple
      *
      * @return TupleType
+     *
+     * @throws \InvalidArgumentException
+     * @throws CassandraException
      */
     protected function unpackTuple(string $content, array $subTypes): TupleType
     {
@@ -1535,8 +1622,7 @@ class Cassandra
     }
 
     /**
-     * Pops a [bytes] value from the body, starting from the offset, and
-     * advancing it in the process.
+     * Pops a [bytes] value from the body, starting from the offset, and advancing it in the process.
      *
      * @param string $body Content's body.
      * @param int &$offset Offset to start from.
@@ -1587,8 +1673,7 @@ class Cassandra
     }
 
     /**
-     * Pops a [long string] value from the body, starting from the offset, and
-     * advancing it in the process.
+     * Pops a [long string] value from the body, starting from the offset, and advancing it in the process.
      *
      * @param string $body Content's body.
      * @param int &$offset Offset to start from.
@@ -1609,8 +1694,7 @@ class Cassandra
     }
 
     /**
-     * Pops a [int] value from the body, starting from the offset, and
-     * advancing it in the process.
+     * Pops a [int] value from the body, starting from the offset, and advancing it in the process.
      *
      * @param string $body Content's body.
      * @param int &$offset Offset to start from.
@@ -1625,8 +1709,7 @@ class Cassandra
     }
 
     /**
-     * Pops a [short] value from the body, starting from the offset, and
-     * advancing it in the process.
+     * Pops a [short] value from the body, starting from the offset, and advancing it in the process.
      *
      * @param string $body Content's body.
      * @param int &$offset Offset to start from.
@@ -1840,6 +1923,7 @@ class Cassandra
             self::COLUMNTYPE_LIST => 'list',
             self::COLUMNTYPE_SET => 'set',
             self::COLUMNTYPE_MAP => 'map',
+            self::COLUMNTYPE_UDT => 'udt',
             self::COLUMNTYPE_TUPLE => 'tuple',
             default => 'Unknown column type ' . $type
         };
