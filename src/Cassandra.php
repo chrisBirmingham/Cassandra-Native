@@ -223,14 +223,16 @@ class Cassandra
 
         $this->socket->setTimeout($clusterOptions->getRequestTimeout());
 
+        // Send an OPTIONS request and check our clients compatibility
+        // Have to send on every new connection as we don't know whether to set compression
+        // until we have this response. Might be a good idea to add caching in the future
+        $optionsMap = $this->sendOptionsFrame();
+        $this->checkCompatibility($clusterOptions, $optionsMap);
+
         // Don't send startup & authentication if we're using a persistent connection
         if ($this->socket->isPersistent()) {
             return;
         }
-
-        // Send an OPTIONS request and check our clients compatibility
-        $optionsMap = $this->sendOptionsFrame();
-        $this->checkCompatibility($clusterOptions, $optionsMap);
 
         $this->sendStartupFrame($clusterOptions);
     }
@@ -318,7 +320,7 @@ class Cassandra
         $startBody = [
             'CQL_VERSION' => '3.0.0',
             'DRIVER_NAME' => 'PHP Cassandra Native Driver',
-            'DRIVER_VERSION' => '3.0.0'
+            'DRIVER_VERSION' => '3.0.1'
         ];
 
         if ($this->compressor instanceof CompressorInterface) {
