@@ -110,7 +110,7 @@ class Socket
      */
     public function isPersistent(): bool
     {
-         return $this->persistent && ftell($this->stream) != 0;
+         return ftell($this->stream) > 0;
     }
 
     /**
