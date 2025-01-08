@@ -223,6 +223,10 @@ class Cassandra
 
         $this->socket->setTimeout($clusterOptions->getRequestTimeout());
 
+        // Get whether we have a persistent connection before sending options request as that
+        // updates the seek position from ftell
+        $persistent = $this->socket->isPersistent();
+
         // Send an OPTIONS request and check our clients compatibility
         // Have to send on every new connection as we don't know whether to set compression
         // until we have this response. Might be a good idea to add caching in the future
@@ -230,7 +234,7 @@ class Cassandra
         $this->checkCompatibility($clusterOptions, $optionsMap);
 
         // Don't send startup & authentication if we're using a persistent connection
-        if ($this->socket->isPersistent()) {
+        if ($persistent) {
             return;
         }
 
@@ -320,7 +324,7 @@ class Cassandra
         $startBody = [
             'CQL_VERSION' => '3.0.0',
             'DRIVER_NAME' => 'PHP Cassandra Native Driver',
-            'DRIVER_VERSION' => '3.0.1'
+            'DRIVER_VERSION' => '3.0.2'
         ];
 
         if ($this->compressor instanceof CompressorInterface) {
