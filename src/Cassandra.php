@@ -324,7 +324,7 @@ class Cassandra
         $startBody = [
             'CQL_VERSION' => '3.0.0',
             'DRIVER_NAME' => 'PHP Cassandra Native Driver',
-            'DRIVER_VERSION' => '3.0.1'
+            'DRIVER_VERSION' => '3.0.2'
         ];
 
         if ($this->compressor instanceof CompressorInterface) {
