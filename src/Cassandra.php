@@ -231,7 +231,11 @@ class Cassandra
         // Have to send on every new connection as we don't know whether to set compression
         // until we have this response. Might be a good idea to add caching in the future
         $optionsMap = $this->sendOptionsFrame();
-        $this->checkCompatibility($clusterOptions, $optionsMap);
+
+        // TODO Cannot check compatibility due to persistant connections being compressed. This bug
+        // will need fixing and until then we will have to force the compression type.
+        // $this->checkCompatibility($clusterOptions, $optionsMap);
+        $this->setCompressor($clusterOptions);
 
         // Don't send startup & authentication if we're using a persistent connection
         if ($persistent) {
@@ -239,6 +243,25 @@ class Cassandra
         }
 
         $this->sendStartupFrame($clusterOptions);
+    }
+
+    /**
+     *
+     * @param ClusterOptions $clusterOptions Client configuration
+     */
+    protected function setCompressor(ClusterOptions $clusterOptions): void
+    {
+        $configuredCompressors = $clusterOptions->getCompressors();
+        $compressionType = $clusterOptions->getCompressionType();
+
+        foreach ($configuredCompressors as $compressor) {
+            if ($compressionType === $configuredCompressors->getName()) {
+                $this->compressor = $compressor;
+                return;
+            }
+        }
+
+        throw new CompressionException("Unable to force compression type. Type '{$compressionType}' not found");
     }
 
     /**

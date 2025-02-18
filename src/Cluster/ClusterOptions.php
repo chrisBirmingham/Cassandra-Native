@@ -35,6 +35,11 @@ class ClusterOptions
     protected array $compressors;
 
     /**
+     * @var string
+     */
+    protected string $compressionType;
+
+    /**
      * @param int $consistency
      * @param string[] $hosts
      * @param ?AuthProviderInterface $authProvider
@@ -45,6 +50,7 @@ class ClusterOptions
      * @param int $port
      * @param bool $persistent
      * @param CompressorInterface[] $compressors
+     * @param string $compressionType
      */
     public function __construct(
         int $consistency,
@@ -56,7 +62,8 @@ class ClusterOptions
         ?SSLOptions $ssl, 
         int $port,
         bool $persistent,
-        array $compressors
+        array $compressors,
+        string $compressionType
     ) {
         $this->consistency = $consistency;
         $this->hosts = $hosts;
@@ -68,6 +75,7 @@ class ClusterOptions
         $this->port = $port;
         $this->persistent = $persistent;
         $this->compressors = $compressors;
+        $this->compressionType = $compressionType;
     }
 
     /**
@@ -148,5 +156,13 @@ class ClusterOptions
     public function getCompressors(): array
     {
         return $this->compressors;
+    }
+
+    /**
+     * @return string
+     */
+    public function getCompressionType(): string
+    {
+        return $this->compressionType;
     }
 }

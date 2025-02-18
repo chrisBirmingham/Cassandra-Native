@@ -33,6 +33,8 @@ class ClusterBuilder
 
     protected bool $useCompression = false;
 
+    protected string $compressionType = "lz4";
+
     /**
      * Sets the default consistency for all queries to the cluster. Default is CONSISTENCY_ONE
      *
@@ -178,6 +180,19 @@ class ClusterBuilder
     }
 
     /**
+     * Set the compression type, essentially forces the client to use
+     * a certain type of compression rather than finding out from the node
+     *
+     * @param string $type
+     * @return $this
+     */
+    public function withCompressionType(string $type): static
+    {
+        $this->compressionType = type;
+        return $this;
+    }
+
+    /**
      * Builds a cluster based on current settings
      *
      * @return Cassandra
@@ -211,7 +226,8 @@ class ClusterBuilder
             $this->ssl,
             $this->port,
             $this->persistent,
-            $compressors
+            $compressors,
+            $this->compressionType
         );
 
         return new Cassandra($options);
