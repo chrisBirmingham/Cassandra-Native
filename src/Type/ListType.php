@@ -1,25 +1,30 @@
 <?php
 
-namespace CassandraNative\Result;
+namespace CassandraNative\Type;
 
-class Rows implements \ArrayAccess, \Countable, \Iterator
+class ListType implements \ArrayAccess, \Countable, \Iterator
 {
-    protected array $results;
+	protected int $type;
 
-    /**
-     * @param array[] $results
-     */
-    public function __construct(array $results)
-    {
-        $this->results = $results;
-    }
+	protected array $values;
+
+	public function __construct(int $type, array $values)
+	{
+		$this->type = $type;
+		$this->values = $values;
+	}
+
+	public function getType(): int
+	{
+		return $this->type;
+	}
 
     /**
      * {@inheritDoc}
      */
     public function count(): int
     {
-        return count($this->results);
+        return count($this->values);
     }
 
     /**
@@ -27,7 +32,7 @@ class Rows implements \ArrayAccess, \Countable, \Iterator
      */
     public function rewind(): void
     {
-        reset($this->results);
+        reset($this->values);
     }
 
     /**
@@ -35,7 +40,7 @@ class Rows implements \ArrayAccess, \Countable, \Iterator
      */
     public function current(): mixed
     {
-        return current($this->results);
+        return current($this->values);
     }
 
     /**
@@ -43,7 +48,7 @@ class Rows implements \ArrayAccess, \Countable, \Iterator
      */
     public function key(): int
     {
-        return key($this->results);
+        return key($this->values);
     }
 
     /**
@@ -51,7 +56,7 @@ class Rows implements \ArrayAccess, \Countable, \Iterator
      */
     public function next(): void
     {
-        next($this->results);
+        next($this->values);
     }
 
     /**
@@ -59,7 +64,7 @@ class Rows implements \ArrayAccess, \Countable, \Iterator
      */
     public function valid(): bool
     {
-        return key($this->results) !== null;
+        return key($this->values) !== null;
     }
 
     /**
@@ -67,15 +72,15 @@ class Rows implements \ArrayAccess, \Countable, \Iterator
      */
     public function offsetExists(mixed $offset): bool
     {
-        return isset($this->results[$offset]);
+        return isset($this->values[$offset]);
     }
 
     /**
      * {@inheritDoc}
      */
-    public function offsetGet(mixed $offset): ?array
+    public function offsetGet(mixed $offset): mixed
     {
-        return $this->results[$offset] ?? null;
+        return $this->values[$offset] ?? null;
     }
 
     /**
@@ -83,7 +88,7 @@ class Rows implements \ArrayAccess, \Countable, \Iterator
      */
     public function offsetSet(mixed $offset, mixed $value): void
     {
-        $this->results[$offset] = $value;
+        $this->values[$offset] = $value;
     }
 
     /**
@@ -91,6 +96,6 @@ class Rows implements \ArrayAccess, \Countable, \Iterator
      */
     public function offsetUnset(mixed $offset): void
     {
-        unset($this->results[$offset]);
+        unset($this->values[$offset]);
     }
 }

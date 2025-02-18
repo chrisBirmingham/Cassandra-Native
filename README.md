@@ -33,7 +33,7 @@ $ composer require intermaterium/cassandra-native
 * Batch Statements
 * Async queries
 * Result Paging
-* Tuples and User Defined Types
+* User Defined Types
 
 ## Usage
 
@@ -212,6 +212,48 @@ $rows = $cassandra->execute($stmt, $values);
 ```
 
 Unlike Simple Statements, you don't need to specify the bound values type.
+
+#### Tuples
+
+Tuples are created via the `TupleFactory` class. You must create a new
+`TupleFactory` for every different type of tuple you're creating.
+
+The factory accepts a list of Cassandra types. These types *MUST* follow
+the same order as they are defined in Cassandra ie if the tuple was created
+with <int, float, text>, you cannot do <int, text, float> otherwise a
+QueryException will be thrown.
+
+To create a tuple from the factory, call the `create` method passing in
+the values for the tuple.
+
+```php
+$stmt = new SimpleStatement('INSERT INTO users (id, name, address) VALUES (?, ?, ?)');
+
+$addressTupleFactory = new TupleFactory([
+  Cassandra::COLUMNTYPE_TEXT,
+  Cassandra::COLUMNTYPE_TEXT,
+  Cassandra::COLUMNTYPE_INT
+]);
+
+$address = $addressTupleFactory->create(['Santa Clara', '2000 Log Ave', 95054]);
+
+$cassandra->execute($stmt, [
+    ['7d64dca1-dd4d-4f3c-bec4-6a88fa082a13', Cassandra::COLUMNTYPE_UUID],
+    ['Chris', Cassandra::COLUMNTYPE_TEXT],
+    [$address, Cassandra::COLUMNTYPE_TUPLE]
+]);
+```
+
+Tuples can both be iterated over and indexed.
+
+```php
+$stmt = new SimpleStatement('SELECT * FROM users');
+$rows = $cassandra->execute($stmt);
+
+foreach ($rows->current()['address'] as $item) {
+  echo $item . PHP_EOL;
+}
+```
 
 ## External links
 
