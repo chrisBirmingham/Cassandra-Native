@@ -255,7 +255,7 @@ class Cassandra
         $compressionType = $clusterOptions->getCompressionType();
 
         foreach ($configuredCompressors as $compressor) {
-            if ($compressionType === $configuredCompressors->getName()) {
+            if ($compressionType === $compressor->getName()) {
                 $this->compressor = $compressor;
                 return;
             }
