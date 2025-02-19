@@ -188,7 +188,7 @@ class ClusterBuilder
      */
     public function withCompressionType(string $type): static
     {
-        $this->compressionType = type;
+        $this->compressionType = $type;
         return $this;
     }
 
