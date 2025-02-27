@@ -281,12 +281,11 @@ class Cassandra
     /**
      * Checks if the client and the connected cassandra node support the same options
      *
-     * @param ClusterOptions $clusterOptions Client configuration
      * @param array $optionsMap              The options map from the cluster to check against
      *
      * @throws CassandraException
      */
-    protected function checkCompatibility(ClusterOptions $clusterOptions, array $optionsMap): void
+    protected function checkCompatibility(array $optionsMap): void
     {
         // We only support checking compression at the moment. Early return if we're not set to use it
         if (empty($this->compressor)) {
