@@ -228,8 +228,6 @@ class Cassandra
         // updates the seek position from ftell
         $persistent = $this->socket->isPersistent();
 
-        $this->setCompressor($clusterOptions);
-
         // Send an OPTIONS request and check our clients compatibility
         // Have to send on every new connection as we don't know whether to set compression
         // until we have this response. Might be a good idea to add caching in the future
