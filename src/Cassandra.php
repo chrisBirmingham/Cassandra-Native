@@ -161,7 +161,7 @@ class Cassandra
 
     protected int $defaultConsistency;
 
-    protected ?CompressorInterface $compressor = null;
+    protected ?CompressorInterface $compressor;
 
     /**
      * @param ClusterOptions $options
@@ -170,6 +170,7 @@ class Cassandra
     public function __construct(ClusterOptions $options)
     {
         $this->socket = new Socket();
+        $this->compressor = $options->getCompressor();
         $this->defaultConsistency = $options->getDefaultConsistency();
         $this->establishConnection($options);
     }
@@ -247,25 +248,6 @@ class Cassandra
     }
 
     /**
-     *
-     * @param ClusterOptions $clusterOptions Client configuration
-     */
-    protected function setCompressor(ClusterOptions $clusterOptions): void
-    {
-        $configuredCompressors = $clusterOptions->getCompressors();
-        $compressionType = $clusterOptions->getCompressionType();
-
-        foreach ($configuredCompressors as $compressor) {
-            if ($compressionType === $compressor->getName()) {
-                $this->compressor = $compressor;
-                return;
-            }
-        }
-
-        throw new CompressionException("Unable to force compression type. Type '{$compressionType}' not found");
-    }
-
-    /**
      * Sends an OPTIONS frame to the connected cassandra node and validates the response
      *
      * @return array The returned options map
@@ -308,31 +290,23 @@ class Cassandra
      */
     protected function checkCompatibility(ClusterOptions $clusterOptions, array $optionsMap): void
     {
-        $configuredCompressors = $clusterOptions->getCompressors();
-        
         // We only support checking compression at the moment. Early return if we're not set to use it
-        if (empty($configuredCompressors)) {
+        if (empty($this->compressor)) {
             return;
         }
 
         $supportedCompressors = $optionsMap['COMPRESSION'] ?? [];
 
         if (empty($supportedCompressors)) {
-            throw new ProtocolException('Client configured to use compression but connected Cassandra Cluster only supports uncompressed communication');
-        }
-
-        // Loop through supported compressors and use first one we match on
-        foreach ($configuredCompressors as $compressor) {
-            if (in_array($compressor->getName(), $supportedCompressors)) {
-                $this->compressor = $compressor;
-                return;
-            }
+            throw new ProtocolException(
+                'Client configured to use compression but connected Cassandra Cluster only supports uncompressed communication'
+            );
         }
 
         throw new ProtocolException(
             sprintf(
                 'Client configured to use %s compression but Cassandra Cluster supports %s compression',
-                implode(', ', $configuredCompressors),
+                $this->compressor->getName(),
                 implode(', ', $supportedCompressors)
             )
         );

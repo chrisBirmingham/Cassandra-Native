@@ -33,8 +33,6 @@ class ClusterBuilder
 
     protected bool $useCompression = false;
 
-    protected string $compressionType = "lz4";
-
     /**
      * Sets the default consistency for all queries to the cluster. Default is CONSISTENCY_ONE
      *
@@ -180,19 +178,6 @@ class ClusterBuilder
     }
 
     /**
-     * Set the compression type, essentially forces the client to use
-     * a certain type of compression rather than finding out from the node
-     *
-     * @param string $type
-     * @return $this
-     */
-    public function withCompressionType(string $type): static
-    {
-        $this->compressionType = $type;
-        return $this;
-    }
-
-    /**
      * Builds a cluster based on current settings
      *
      * @return Cassandra
@@ -200,18 +185,15 @@ class ClusterBuilder
      */
     public function build(): Cassandra
     {
-        $compressors = [];
+        $compressor = null;
+
         if ($this->useCompression) {
             $extensions = get_loaded_extensions();
             if (in_array('lz4', $extensions)) {
-                $compressors[] = new Lz4Compressor();
+                $compressor = new Lz4Compressor();
             }
 
-            if (in_array('snappy', $extensions)) {
-                $compressors[] = new SnappyCompressor();
-            }
-
-            if (empty($compressors)) {
+            if (empty($compressor)) {
                 throw new \Exception('Compression enabled but lz4 and snappy extensions are not available');
             }
         }
@@ -226,8 +208,7 @@ class ClusterBuilder
             $this->ssl,
             $this->port,
             $this->persistent,
-            $compressors,
-            $this->compressionType
+            $compressor
         );
 
         return new Cassandra($options);
