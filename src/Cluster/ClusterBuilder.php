@@ -4,9 +4,7 @@ namespace CassandraNative\Cluster;
 
 use CassandraNative\Auth\AuthProviderInterface;
 use CassandraNative\Cassandra;
-use CassandraNative\Compression\CompressorInterface;
 use CassandraNative\Compression\Lz4Compressor;
-use CassandraNative\Compression\SnappyCompressor;
 use CassandraNative\SSL\SSLOptions;
 
 class ClusterBuilder
