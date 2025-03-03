@@ -4,6 +4,7 @@ namespace CassandraNative\Cluster;
 
 use CassandraNative\Auth\AuthProviderInterface;
 use CassandraNative\Cassandra;
+use CassandraNative\Compression\CompressorInterface;
 use CassandraNative\Compression\Lz4Compressor;
 use CassandraNative\Compression\SnappyCompressor;
 use CassandraNative\SSL\SSLOptions;
@@ -191,10 +192,8 @@ class ClusterBuilder
             $extensions = get_loaded_extensions();
             if (in_array('lz4', $extensions)) {
                 $compressor = new Lz4Compressor();
-            }
-
-            if (empty($compressor)) {
-                throw new \Exception('Compression enabled but lz4 and snappy extensions are not available');
+            } else {
+                throw new \Exception('Compression enabled but the lz4 extension is not available');
             }
         }
 

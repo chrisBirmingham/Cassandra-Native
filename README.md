@@ -25,7 +25,7 @@ $ composer require intermaterium/cassandra-native
 * Simple and Prepared Statements
 * SSL Encryption
 * Persistent Connections
-* Compression via LZ4 and Snappy.
+* Compression via LZ4.
 * Authentication
 
 ## Missing Features
@@ -97,16 +97,19 @@ on the cluster builder.
 $clusterBuilder->withCompression(true);
 ```
 
-The client checks to see if the LZ4 and Snappy extensions are loaded by
-PHP and then query the Cassandra node to see which compression algorithms
-are supported. The client will then choose the compression algorithm that
-both the client and server support. If both algorithms are supported, the 
-client will choose LZ4 over Snappy.
+When enabled, the client checks to see if the LZ4 extension is loaded by
+PHP. If the extension is not loaded, an exception is thrown.
 
-If compression is requested and the two extensions aren't loaded or 
-the Cassandra node doesn't support compression, an exception is 
-thrown. An exception is also thrown if the client and Cassandra node
-support different compression algorithms.
+Originally on creation, the client would send an OPTIONS request and choose 
+which compression  algorithm to use based from the response. This uncovered 
+an issue when using persistent connections. Unless we were using a cache,
+there wasn't a way to tell if the persistent connection had compression 
+enabled unless we queried the cluster again, and Cassandra would return 
+a compressed OPTIONS response before we had set the compressor.
+
+To make things simpler, the client now assumes that the Cassandra cluster 
+supports LZ4 compression when compression is requested and Snappy compression
+has been removed.
 
 ### Authentication
 

@@ -228,13 +228,13 @@ class Cassandra
         // updates the seek position from ftell
         $persistent = $this->socket->isPersistent();
 
+        // TODO Cannot check compatibility due to persistant connections being compressed. This bug
+        // will need fixing and until then we will have to force the compression type.
+
         // Send an OPTIONS request and check our clients compatibility
         // Have to send on every new connection as we don't know whether to set compression
         // until we have this response. Might be a good idea to add caching in the future
-        $optionsMap = $this->sendOptionsFrame();
-
-        // TODO Cannot check compatibility due to persistant connections being compressed. This bug
-        // will need fixing and until then we will have to force the compression type.
+        // $optionsMap = $this->sendOptionsFrame();
         // $this->checkCompatibility($clusterOptions, $optionsMap);
 
         // Don't send startup & authentication if we're using a persistent connection
@@ -319,7 +319,7 @@ class Cassandra
         $startBody = [
             'CQL_VERSION' => '3.0.0',
             'DRIVER_NAME' => 'PHP Cassandra Native Driver',
-            'DRIVER_VERSION' => '3.0.2'
+            'DRIVER_VERSION' => '3.1.0'
         ];
 
         if ($this->compressor instanceof CompressorInterface) {
