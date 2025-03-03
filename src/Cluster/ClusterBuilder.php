@@ -5,7 +5,6 @@ namespace CassandraNative\Cluster;
 use CassandraNative\Auth\AuthProviderInterface;
 use CassandraNative\Cassandra;
 use CassandraNative\Compression\Lz4Compressor;
-use CassandraNative\Compression\SnappyCompressor;
 use CassandraNative\SSL\SSLOptions;
 
 class ClusterBuilder
@@ -185,19 +184,14 @@ class ClusterBuilder
      */
     public function build(): Cassandra
     {
-        $compressors = [];
+        $compressor = null;
+
         if ($this->useCompression) {
             $extensions = get_loaded_extensions();
             if (in_array('lz4', $extensions)) {
-                $compressors[] = new Lz4Compressor();
-            }
-
-            if (in_array('snappy', $extensions)) {
-                $compressors[] = new SnappyCompressor();
-            }
-
-            if (empty($compressors)) {
-                throw new \Exception('Compression enabled but lz4 and snappy extensions are not available');
+                $compressor = new Lz4Compressor();
+            } else {
+                throw new \Exception('Compression enabled but the lz4 extension is not available');
             }
         }
 
@@ -211,7 +205,7 @@ class ClusterBuilder
             $this->ssl,
             $this->port,
             $this->persistent,
-            $compressors
+            $compressor
         );
 
         return new Cassandra($options);

@@ -161,7 +161,7 @@ class Cassandra
 
     protected int $defaultConsistency;
 
-    protected ?CompressorInterface $compressor = null;
+    protected ?CompressorInterface $compressor;
 
     /**
      * @param ClusterOptions $options
@@ -170,6 +170,7 @@ class Cassandra
     public function __construct(ClusterOptions $options)
     {
         $this->socket = new Socket();
+        $this->compressor = $options->getCompressor();
         $this->defaultConsistency = $options->getDefaultConsistency();
         $this->establishConnection($options);
     }
@@ -227,11 +228,14 @@ class Cassandra
         // updates the seek position from ftell
         $persistent = $this->socket->isPersistent();
 
+        // TODO Cannot check compatibility due to persistant connections being compressed. This bug
+        // will need fixing and until then we will have to force the compression type.
+
         // Send an OPTIONS request and check our clients compatibility
         // Have to send on every new connection as we don't know whether to set compression
         // until we have this response. Might be a good idea to add caching in the future
-        $optionsMap = $this->sendOptionsFrame();
-        $this->checkCompatibility($clusterOptions, $optionsMap);
+        // $optionsMap = $this->sendOptionsFrame();
+        // $this->checkCompatibility($clusterOptions, $optionsMap);
 
         // Don't send startup & authentication if we're using a persistent connection
         if ($persistent) {
@@ -277,38 +281,29 @@ class Cassandra
     /**
      * Checks if the client and the connected cassandra node support the same options
      *
-     * @param ClusterOptions $clusterOptions Client configuration
      * @param array $optionsMap              The options map from the cluster to check against
      *
      * @throws CassandraException
      */
-    protected function checkCompatibility(ClusterOptions $clusterOptions, array $optionsMap): void
+    protected function checkCompatibility(array $optionsMap): void
     {
-        $configuredCompressors = $clusterOptions->getCompressors();
-        
         // We only support checking compression at the moment. Early return if we're not set to use it
-        if (empty($configuredCompressors)) {
+        if (empty($this->compressor)) {
             return;
         }
 
         $supportedCompressors = $optionsMap['COMPRESSION'] ?? [];
 
         if (empty($supportedCompressors)) {
-            throw new ProtocolException('Client configured to use compression but connected Cassandra Cluster only supports uncompressed communication');
-        }
-
-        // Loop through supported compressors and use first one we match on
-        foreach ($configuredCompressors as $compressor) {
-            if (in_array($compressor->getName(), $supportedCompressors)) {
-                $this->compressor = $compressor;
-                return;
-            }
+            throw new ProtocolException(
+                'Client configured to use compression but connected Cassandra Cluster only supports uncompressed communication'
+            );
         }
 
         throw new ProtocolException(
             sprintf(
                 'Client configured to use %s compression but Cassandra Cluster supports %s compression',
-                implode(', ', $configuredCompressors),
+                $this->compressor->getName(),
                 implode(', ', $supportedCompressors)
             )
         );
@@ -324,7 +319,7 @@ class Cassandra
         $startBody = [
             'CQL_VERSION' => '3.0.0',
             'DRIVER_NAME' => 'PHP Cassandra Native Driver',
-            'DRIVER_VERSION' => '3.0.2'
+            'DRIVER_VERSION' => '3.1.0'
         ];
 
         if ($this->compressor instanceof CompressorInterface) {
