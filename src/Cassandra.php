@@ -40,7 +40,7 @@ use CassandraNative\Statement\StatementInterface;
  * The MIT License (MIT)
  *
  * Copyright (c) 2023 Uri Hartmann
- * Copyright (c) 2024 Christopher Birmingham
+ * Copyright (c) 2025 Christopher Birmingham
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -155,6 +155,8 @@ class Cassandra
 
     protected const PROTOCOL_VERSION = 4;
 
+    protected const MAX_STREAM_ID = 32768;
+
     protected Socket $socket;
 
     protected string $fullFrame = '';
@@ -162,6 +164,8 @@ class Cassandra
     protected int $defaultConsistency;
 
     protected ?CompressorInterface $compressor;
+
+    protected bool $usingPersistence;
 
     /**
      * @param ClusterOptions $options
@@ -172,6 +176,7 @@ class Cassandra
         $this->socket = new Socket();
         $this->compressor = $options->getCompressor();
         $this->defaultConsistency = $options->getDefaultConsistency();
+        $this->usingPersistence = $options->getPersistentSessions();
         $this->establishConnection($options);
     }
 
@@ -201,7 +206,7 @@ class Cassandra
                 $this->socket->connect(
                     $host,
                     $clusterOptions->getPort(),
-                    $clusterOptions->getPersistentSessions(),
+                    $this->usingPersistence,
                     $clusterOptions->getConnectTimeout()
                 );
 
@@ -319,7 +324,7 @@ class Cassandra
         $startBody = [
             'CQL_VERSION' => '3.0.0',
             'DRIVER_NAME' => 'PHP Cassandra Native Driver',
-            'DRIVER_VERSION' => '3.1.0'
+            'DRIVER_VERSION' => '3.1.1'
         ];
 
         if ($this->compressor instanceof CompressorInterface) {
@@ -591,11 +596,13 @@ class Cassandra
      */
     protected function requestResult(int $opcode, string $body): array
     {
+        $requestStreamId = ($this->usingPersistence) ? rand(1, self::MAX_STREAM_ID) : 0;
+
         // Writes the frame
-        $this->writeFrame($opcode, $body);
+        $this->writeFrame($opcode, $body, $requestStreamId);
 
         // Reads incoming frame
-        $frame = $this->readFrame();
+        $frame = $this->readFrame($requestStreamId);
         $opcode = $frame['opcode'];
 
         // Parses the incoming frame
@@ -611,15 +618,14 @@ class Cassandra
      *
      * @param int $opcode   Frame's opcode.
      * @param string $body  Frame's body.
-     * @param int $response Frame's response flag.
      * @param int $stream   Frame's stream id.
      *
      * @throws CassandraException
      */
-    protected function writeFrame(int $opcode, string $body = '', int $response = 0, int $stream = 0): void
+    protected function writeFrame(int $opcode, string $body = '', int $stream = 0): void
     {
         // Prepares the outgoing packet
-        $frame = $this->packFrame($opcode, $body, $response, $stream);
+        $frame = $this->packFrame($opcode, $body, $stream);
 
         // Writes frame to socket
         $this->socket->write($frame);
@@ -703,22 +709,28 @@ class Cassandra
     /**
      * Reads pending frame from the socket.
      *
-     * @return array Incoming data.
+     * @param int $requestStreamId The stream id we're expecting to get back
+     *
+     * @return array               Incoming data.
      *
      * @throws CassandraException
      */
-    protected function readFrame(): array
+    protected function readFrame(int $requestStreamId = 0): array
     {
-        // Read the 9 bytes header
-        $header = $this->socket->read(9);
-        $length = $this->intFromBin($header, 5, 4);
+        /**
+         * If a php thread using a persistent connection fatals before reading the response from Cassandra,
+         * the next thread to read from that connection will read the old response. Check to see if the responses
+         * stream id matches the one we're expecting and discard any orphaned responses.
+         */
+        do {
+            // Read the 9 bytes header
+            $header = $this->socket->read(9);
+            $responseStreamId = $this->intFromBin($header, 2, 2);
+            $length = $this->intFromBin($header, 5, 4);
 
-        // Read frame body, if exists
-        $body = '';
-        
-        if ($length) {
-            $body = $this->socket->read($length);
-        }
+            // Read frame body, if exists
+            $body = ($length) ? $this->socket->read($length) : '';
+        } while ($requestStreamId !== $responseStreamId);
 
         return $this->parseIncomingFrame($header, $body);
     }
@@ -1518,16 +1530,15 @@ class Cassandra
      *
      * @param int $opcode   Frame's opcode.
      * @param string $body  Frame's body.
-     * @param int $response Frame's response flag.
      * @param int $stream   Frame's stream id.
      *
      * @return string Frame's content.
      *
      * @throws CassandraException
      */
-    protected function packFrame(int $opcode, string $body = '', int $response = 0, int $stream = 0): string
+    protected function packFrame(int $opcode, string $body, int $stream): string
     {
-        $version = ($response << 0x07) | self::PROTOCOL_VERSION;
+        $version = (0 << 0x07) | self::PROTOCOL_VERSION;
         $flags = 0;
 
         // STARTUP and OPTION Messages cannot be compressed

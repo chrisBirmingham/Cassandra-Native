@@ -222,14 +222,14 @@ Unlike Simple Statements, you don't need to specify the bound values type.
    http://www.datastax.com/dev/blog/binary-protocol
 
 2. CQL definitions
-   https://cassandra.apache.org/_/native_protocol.html
+   https://cassandra.apache.org/doc/latest/cassandra/reference/native-protocol.html#native-protocol-version-4
 
 ## License
 
     The MIT License (MIT)
 
     Copyright (c) 2023 Uri Hartmann
-    Copyright (c) 2024 Christopher Birmingham
+    Copyright (c) 2025 Christopher Birmingham
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
