@@ -116,27 +116,29 @@ class Socket
     /**
      * Reads data with a specific size from socket.
      *
-     * @param int $size Requested data size.
+     * @param int $length Requested data size.
      *
      * @return string Incoming data.
      *
      * @throws ConnectionException
      */
-    public function read(int $size): string
+    public function read(int $length): string
     {
         $data = '';
+
         do {
-            $readSize = $size - strlen($data);
-            $buff = @fread($this->stream, $readSize);
-            if ($buff === false) {
+            $chunk = fread($this->stream, $length);
+
+            if ($chunk === false || $chunk === '') {
                 if (stream_get_meta_data($this->stream)['timed_out']) {
                     throw new TimeoutException('Timeout occurred while reading from socket');
                 }
 
                 throw new ConnectionException('Failed to read packet from socket');
             }
-            $data .= $buff;
-        } while (strlen($data) < $size);
+
+            $data .= $chunk;
+        } while (($length -= strlen($chunk)) > 0);
 
         return $data;
     }
@@ -150,13 +152,25 @@ class Socket
      */
     public function write(string $body): void
     {
-        if (fwrite($this->stream, $body) === false) {
-            if (stream_get_meta_data($this->stream)['timed_out']) {
-                throw new TimeoutException('Timeout occurred while writing to socket');
+        $length = strlen($body);
+
+        do {
+            $written = fwrite($this->stream, $body);
+
+            if ($length === $written) {
+                return;
             }
 
-            throw new ConnectionException('Failed to write packet to socket');
-        }
+            if ($written === false || $written < 1) {
+                if (stream_get_meta_data($this->stream)['timed_out']) {
+                    throw new TimeoutException('Timeout occurred while writing to socket');
+                }
+
+                throw new ConnectionException('Failed to write packet to socket');
+            }
+
+            $body = substr($body, $written);
+        } while (($length = strlen($body)) > 0);
     }
 
     /**
