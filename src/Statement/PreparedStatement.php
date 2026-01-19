@@ -2,11 +2,11 @@
 
 namespace CassandraNative\Statement;
 
-class PreparedStatement implements StatementInterface
+readonly class PreparedStatement implements StatementInterface
 {
-    protected string $id;
+    public string $id;
 
-    protected array $columns;
+    public array $columns;
 
     /**
      * @param string $id
@@ -16,22 +16,6 @@ class PreparedStatement implements StatementInterface
     {
         $this->id = $id;
         $this->columns = $columns;
-    }
-
-    /**
-     * @return string
-     */
-    public function getId(): string 
-    {
-        return $this->id;
-    }
-
-    /**
-     * @return array
-     */
-    public function getColumns(): array
-    {
-        return $this->columns;
     }
 
     /**

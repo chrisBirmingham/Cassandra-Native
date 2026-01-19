@@ -87,30 +87,46 @@ class Cassandra
     /* @deprecated use Consistency::LOCAL_ONE */
     public const CONSISTENCY_LOCAL_ONE    = 0x000A;
 
+    /* @deprecated use ColumnType::CUSTOM */
     public const COLUMNTYPE_CUSTOM    = 0x0000;
+    /* @deprecated use ColumnType::ASCII */
     public const COLUMNTYPE_ASCII     = 0x0001;
+    /* @deprecated use ColumnType::BIGINT */
     public const COLUMNTYPE_BIGINT    = 0x0002;
+    /* @deprecated use ColumnType::BLOB */
     public const COLUMNTYPE_BLOB      = 0x0003;
+    /* @deprecated use ColumnType::BOOLEAN */
     public const COLUMNTYPE_BOOLEAN   = 0x0004;
+    /* @deprecated use ColumnType::COUNTER */
     public const COLUMNTYPE_COUNTER   = 0x0005;
+    /* @deprecated use ColumnType::DECIMAL */
     public const COLUMNTYPE_DECIMAL   = 0x0006;
+    /* @deprecated use ColumnType::DOUBLE */
     public const COLUMNTYPE_DOUBLE    = 0x0007;
+    /* @deprecated use ColumnType::FLOAT */
     public const COLUMNTYPE_FLOAT     = 0x0008;
+    /* @deprecated use ColumnType::INT */
     public const COLUMNTYPE_INT       = 0x0009;
+    /* @deprecated use ColumnType::TEXT */
     public const COLUMNTYPE_TEXT      = 0x000A;
+    /* @deprecated use ColumnType::TIMESTAMP */
     public const COLUMNTYPE_TIMESTAMP = 0x000B;
+    /* @deprecated use ColumnType::UUID */
     public const COLUMNTYPE_UUID      = 0x000C;
+    /* @deprecated use ColumnType::VARCHAR */
     public const COLUMNTYPE_VARCHAR   = 0x000D;
+    /* @deprecated use ColumnType::VARINT */
     public const COLUMNTYPE_VARINT    = 0x000E;
+    /* @deprecated use ColumnType::TIMEUUID */
     public const COLUMNTYPE_TIMEUUID  = 0x000F;
+    /* @deprecated use ColumnType::INET */
     public const COLUMNTYPE_INET      = 0x0010;
+    /* @deprecated use ColumnType::LIST */
     public const COLUMNTYPE_LIST      = 0x0020;
+    /* @deprecated use ColumnType::MAP */
     public const COLUMNTYPE_MAP       = 0x0021;
+    /* @deprecated use ColumnType::SET */
     public const COLUMNTYPE_SET       = 0x0022;
-
-    public const BATCH_LOGGED   = 0x00;
-    public const BATCH_UNLOGGED = 0x01;
-    public const BATCH_COUNTER  = 0x02;
 
     protected const FLAG_COMPRESSION    = 0x01;
     protected const FLAG_TRACING        = 0x02;
@@ -240,7 +256,7 @@ class Cassandra
         $opcode = $frame['opcode'];
 
         if ($opcode != Opcode::SUPPORTED) {
-            throw new ProtocolException('Missing SUPPORTED packet. Got ' . $opcode . ' instead', $opcode);
+            throw new ProtocolException("Missing SUPPORTED packet. Got $opcode instead", $opcode);
         }
 
         $body = $frame['body'];
@@ -327,7 +343,7 @@ class Cassandra
                 $this->handleAuth($this->popString($body, $offset), $authProvider);
                 break;
             default:
-                throw new ProtocolException('Missing READY or AUTHENTICATE packet. Got ' . $opcode . ' instead', $opcode);
+                throw new ProtocolException("Missing READY or AUTHENTICATE packet. Got $opcode instead", $opcode);
         }
     }
 
@@ -378,7 +394,7 @@ class Cassandra
                 } while ($opcode == Opcode::AUTH_CHALLENGE);
                 break;
             default:
-                throw new ProtocolException('Missing AUTH_SUCCESS or AUTH_CHALLENGE packet. Got ' . $opcode . ' instead', $opcode);
+                throw new ProtocolException("Missing AUTH_SUCCESS or AUTH_CHALLENGE packet. Got $opcode instead", $opcode);
         }
     }
 
@@ -392,7 +408,7 @@ class Cassandra
      */
     public function connect(string $keyspace): void
     {
-        $stmt = new SimpleStatement('USE ' . $keyspace);
+        $stmt = new SimpleStatement("USE $keyspace");
         $this->execute($stmt);
     }
 
@@ -421,7 +437,7 @@ class Cassandra
     public function execute(
         StatementInterface $stmt,
         array $values = [],
-        Consistency|int $consistency = null
+        Consistency|int|null $consistency = null
     ): Rows {
         if (is_int($consistency)) {
             if ($consistency < Cassandra::CONSISTENCY_ANY || $consistency > Cassandra::CONSISTENCY_LOCAL_ONE) {
@@ -481,15 +497,15 @@ class Cassandra
         Consistency $consistency
     ): array {
         // Prepares the frame's body - <id><count><values map>
-        $frame = base64_decode($stmt->getId());
+        $frame = base64_decode($stmt->id);
         $frame = $this->packString($frame) .
             $this->packShort($consistency->value) .
             $this->packByte(0x01) . // values only
             $this->packShort(count($values));
 
-        foreach ($stmt->getColumns() as $key => $column) {
+        foreach ($stmt->columns as $key => $column) {
             if (!isset($values[$key])) {
-                throw new QueryException('Missing value for bound parameter ' . $key);
+                throw new QueryException("Missing value for bound parameter $key");
             }
 
             $value = $values[$key];
@@ -539,8 +555,16 @@ class Cassandra
                     $valuesData .= $this->packString($key);
                 }
 
-                $data = $this->packValue($value[0], $value[1]);
+                $type = $value[1];
 
+                if (!($type instanceof ColumnType)) {
+                    $type = ColumnType::tryFrom($type);
+                    if ($type === null) {
+                        throw new QueryException("Invalid field type provided for column $key");
+                    }
+                }
+
+                $data = $this->packValue($value[0], $type);
                 $valuesData .= $this->packLongString($data);
             }
 
@@ -635,7 +659,7 @@ class Cassandra
             $warningCount = $this->popShort($body, $iPos);
             for (; $warningCount; $warningCount--) {
                 $warning = $this->popString($body, $iPos);
-                trigger_error('Warning returned while processing Cassandra query: ' . $warning, E_USER_WARNING);
+                trigger_error("Warning returned while processing Cassandra query: $warning", E_USER_WARNING);
             }
 
             $body = substr($body, $iPos);
@@ -781,37 +805,35 @@ class Cassandra
 
             $columnName = $this->popString($body, $bodyOffset);
             $columnType = $this->popShort($body, $bodyOffset);
-            if ($columnType == self::COLUMNTYPE_CUSTOM) {
+            $columnSubType1 = 0x0000;
+            $columnSubType2 = 0x0000;
+
+            if ($columnType === ColumnType::CUSTOM->value) {
                 $columnType = $this->popString($body, $bodyOffset);
-                $columnSubType1 = 0;
-                $columnSubType2 = 0;
-            } elseif (($columnType == self::COLUMNTYPE_LIST) || ($columnType == self::COLUMNTYPE_SET)) {
+            } elseif (in_array($columnType, [ColumnType::LIST->value, ColumnType::SET->value])) {
                 $columnSubType1 = $this->popShort($body, $bodyOffset);
-                if ($columnSubType1 == self::COLUMNTYPE_CUSTOM) {
+                if ($columnSubType1 === ColumnType::CUSTOM->value) {
                     $columnSubType1 = $this->popString($body, $bodyOffset);
                 }
-                $columnSubType2 = 0;
-            } elseif ($columnType == self::COLUMNTYPE_MAP) {
+            } elseif ($columnType === ColumnType::MAP->value) {
                 $columnSubType1 = $this->popShort($body, $bodyOffset);
-                if ($columnSubType1 == self::COLUMNTYPE_CUSTOM) {
+                if ($columnSubType1 === ColumnType::CUSTOM->value) {
                     $columnSubType1 = $this->popString($body, $bodyOffset);
                 }
 
                 $columnSubType2 = $this->popShort($body, $bodyOffset);
-                if ($columnSubType2 == self::COLUMNTYPE_CUSTOM) {
+                if ($columnSubType2 === ColumnType::CUSTOM->value) {
                     $columnSubType2 = $this->popString($body, $bodyOffset);
                 }
-            } else {
-                $columnSubType1 = 0;
-                $columnSubType2 = 0;
             }
+
             $columns[] = [
                 'keyspace' => $keyspace,
                 'table' => $table,
                 'name' => $columnName,
-                'type' => $columnType,
-                'subtype1' => $columnSubType1,
-                'subtype2' => $columnSubType2
+                'type' => ColumnType::from($columnType),
+                'subtype1' => ColumnType::from($columnSubType1),
+                'subtype2' => ColumnType::from($columnSubType2)
             ];
         }
         return $columns;
@@ -895,21 +917,25 @@ class Cassandra
      * parsing rows.
      *
      * @param ?string $content Content to unpack.
-     * @param int $type        Column type.
-     * @param int $subtype1    Sub column type for list/set or key for map.
-     * @param int $subtype2    Sub column value type for map.
+     * @param ColumnType $type     Column type.
+     * @param ColumnType $subtype1 Sub column type for list/set or key for map.
+     * @param ColumnType $subtype2 Sub column value type for map.
      *
      * @return mixed The unpacked value.
      *
      * @throws CassandraException
      */
-    protected function unpackValue(?string $content, int $type, int $subtype1 = 0, int $subtype2 = 0): mixed
-    {
+    protected function unpackValue(
+        ?string $content,
+        ColumnType $type,
+        ColumnType $subtype1 = ColumnType::CUSTOM,
+        ColumnType $subtype2 = ColumnType::CUSTOM
+    ): mixed {
         if ($content === NULL) {
             return NULL;
         }
 
-        return match (ColumnType::tryFrom($type)) {
+        return match ($type) {
             ColumnType::CUSTOM, ColumnType::BLOB => $this->unpackBlob($content),
             ColumnType::ASCII, ColumnType::TEXT, ColumnType::VARCHAR => $content,
             ColumnType::BIGINT, ColumnType::COUNTER, ColumnType::TIMESTAMP => $this->unpackBigint($content),
@@ -922,8 +948,7 @@ class Cassandra
             ColumnType::VARINT => $this->unpackVarInt($content),
             ColumnType::INET => $this->unpackInet($content),
             ColumnType::LIST, ColumnType::SET => $this->unpackList($content, $subtype1),
-            ColumnType::MAP => $this->unpackMap($content, $subtype1, $subtype2),
-            default => throw new ProtocolException('Unknown column type returned from cassandra ' . $type)
+            ColumnType::MAP => $this->unpackMap($content, $subtype1, $subtype2)
         };
     }
 
@@ -1274,14 +1299,14 @@ class Cassandra
     /**
      * Unpacks a COLUMNTYPE_LIST value from its binary form.
      *
-     * @param string $content Content to unpack.
-     * @param int $subtype    Values' Column type.
+     * @param string $content     Content to unpack.
+     * @param ColumnType $subtype Values' Column type.
      *
      * @return array Unpacked value.
      *
      * @throws CassandraException
      */
-    protected function unpackList(string $content, int $subtype): array
+    protected function unpackList(string $content, ColumnType $subtype): array
     {
         $contentOffset = 0;
         $itemsCount = $this->popInt($content, $contentOffset);
@@ -1322,16 +1347,19 @@ class Cassandra
     /**
      * Unpacks a COLUMNTYPE_MAP value from its binary form.
      *
-     * @param string $content Content to unpack.
-     * @param int $subtype1   Keys' column type.
-     * @param int $subtype2   Values' column type.
+     * @param string $content      Content to unpack.
+     * @param ColumnType $subtype1 Keys' column type.
+     * @param ColumnType $subtype2 Values' column type.
      *
      * @return array Unpacked value.
      *
      * @throws CassandraException
      */
-    protected function unpackMap(string $content, int $subtype1, int $subtype2): array
-    {
+    protected function unpackMap(
+        string $content,
+        ColumnType $subtype1,
+        ColumnType $subtype2
+    ): array {
         $contentOffset = 0;
         $itemsCount = $this->popInt($content, $contentOffset);
         $retval = [];
