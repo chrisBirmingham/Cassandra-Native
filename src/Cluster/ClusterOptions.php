@@ -9,29 +9,6 @@ use CassandraNative\SSL\SSLOptions;
 
 readonly class ClusterOptions
 {
-    public Consistency $consistency;
-
-    /**
-     * @var string[]
-     */
-    public array $hosts;
-
-    public ?AuthProviderInterface $authProvider;
-
-    public float $connectTimeout;
-
-    public float $requestTimeout;
-
-    public int $attempts;
-
-    public ?SSLOptions $ssl;
-
-    public int $port;
-
-    public bool $persistent;
-
-    public ?CompressorInterface $compressor;
-
     /**
      * @param Consistency $consistency
      * @param string[] $hosts
@@ -45,26 +22,15 @@ readonly class ClusterOptions
      * @param ?CompressorInterface $compressor
      */
     public function __construct(
-        Consistency $consistency,
-        array $hosts,
-        ?AuthProviderInterface $authProvider,
-        float $connectTimeout,
-        float $requestTimeout,
-        int $attempts,
-        ?SSLOptions $ssl, 
-        int $port,
-        bool $persistent,
-        ?CompressorInterface $compressor
-    ) {
-        $this->consistency = $consistency;
-        $this->hosts = $hosts;
-        $this->authProvider = $authProvider;
-        $this->connectTimeout = $connectTimeout;
-        $this->requestTimeout = $requestTimeout;
-        $this->attempts = $attempts;
-        $this->ssl = $ssl;
-        $this->port = $port;
-        $this->persistent = $persistent;
-        $this->compressor = $compressor;
-    }
+        public Consistency $consistency,
+        public array $hosts,
+        public ?AuthProviderInterface $authProvider,
+        public float $connectTimeout,
+        public float $requestTimeout,
+        public int $attempts,
+        public ?SSLOptions $ssl,
+        public int $port,
+        public bool $persistent,
+        public ?CompressorInterface $compressor
+    ) {}
 }

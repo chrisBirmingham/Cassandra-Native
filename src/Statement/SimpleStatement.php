@@ -4,15 +4,12 @@ namespace CassandraNative\Statement;
 
 class SimpleStatement implements StatementInterface
 {
-    protected string $query;
-
     /**
      * @param string $query
      */
-    public function __construct(string $query)
-    {
-        $this->query = $query;
-    }
+    public function __construct(
+        protected string $query
+    ) {}
 
     /**
      * {@inheritDoc}
