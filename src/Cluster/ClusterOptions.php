@@ -4,35 +4,36 @@ namespace CassandraNative\Cluster;
 
 use CassandraNative\Auth\AuthProviderInterface;
 use CassandraNative\Compression\CompressorInterface;
+use CassandraNative\Consistency;
 use CassandraNative\SSL\SSLOptions;
 
-class ClusterOptions
+readonly class ClusterOptions
 {
-    protected int $consistency;
+    public Consistency $consistency;
 
     /**
      * @var string[]
      */
-    protected array $hosts;
+    public array $hosts;
 
-    protected ?AuthProviderInterface $authProvider;
+    public ?AuthProviderInterface $authProvider;
 
-    protected float $connectTimeout;
+    public float $connectTimeout;
 
-    protected float $requestTimeout;
+    public float $requestTimeout;
 
-    protected int $attempts;
+    public int $attempts;
 
-    protected ?SSLOptions $ssl; 
+    public ?SSLOptions $ssl;
 
-    protected int $port;
+    public int $port;
 
-    protected bool $persistent;
+    public bool $persistent;
 
-    protected ?CompressorInterface $compressor;
+    public ?CompressorInterface $compressor;
 
     /**
-     * @param int $consistency
+     * @param Consistency $consistency
      * @param string[] $hosts
      * @param ?AuthProviderInterface $authProvider
      * @param float $connectTimeout
@@ -44,7 +45,7 @@ class ClusterOptions
      * @param ?CompressorInterface $compressor
      */
     public function __construct(
-        int $consistency,
+        Consistency $consistency,
         array $hosts,
         ?AuthProviderInterface $authProvider,
         float $connectTimeout,
@@ -66,85 +67,4 @@ class ClusterOptions
         $this->persistent = $persistent;
         $this->compressor = $compressor;
     }
-
-    /**
-     * @return int
-     */
-    public function getDefaultConsistency(): int
-    {
-        return $this->consistency;
-    }
-
-    /**
-     * @return string[]
-     */
-    public function getHosts(): array
-    {
-        return $this->hosts;
-    }
-
-    /**
-     * @return ?AuthProviderInterface
-     */
-    public function getAuthProvider(): ?AuthProviderInterface
-    {
-        return $this->authProvider;
-    }
-
-    /**
-     * @return float
-     */
-    public function getConnectTimeout(): float
-    {
-        return $this->connectTimeout;
-    }
-
-    /**
-     * @return float
-     */
-    public function getRequestTimeout(): float
-    {
-        return $this->requestTimeout;
-    }
-
-    /**
-     * @return int
-     */
-    public function getMaxConnectionAttempts(): int
-    {
-        return $this->attempts;
-    }
-
-    /**
-     * @return ?SSLOptions
-     */
-    public function getSSL(): ?SSLOptions
-    {
-        return $this->ssl;
-    }
-
-    /**
-     * @return int
-     */
-    public function getPort(): int
-    {
-        return $this->port;
-    }
-
-    /**
-     * @return bool
-     */
-    public function getPersistentSessions(): bool
-    {
-        return $this->persistent;
-    }
-
-    /**
-     * @return ?CompressorInterface
-     */
-    public function getCompressor(): ?CompressorInterface
-    {
-        return $this->compressor;
-    }
-
 }

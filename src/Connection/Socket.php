@@ -2,10 +2,8 @@
 
 namespace CassandraNative\Connection;
 
-use CassandraNative\Cluster\ClusterOptions;
 use CassandraNative\Exception\ConnectionException;
 use CassandraNative\Exception\TimeoutException;
-use CassandraNative\SSL\SSLOptions;
 
 class Socket
 {

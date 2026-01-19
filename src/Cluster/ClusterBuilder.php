@@ -5,11 +5,12 @@ namespace CassandraNative\Cluster;
 use CassandraNative\Auth\AuthProviderInterface;
 use CassandraNative\Cassandra;
 use CassandraNative\Compression\Lz4Compressor;
+use CassandraNative\Consistency;
 use CassandraNative\SSL\SSLOptions;
 
 class ClusterBuilder
 {
-    protected int $consistency = Cassandra::CONSISTENCY_ONE;
+    protected Consistency $consistency = Consistency::ONE;
 
     /**
      * @var string[]
@@ -35,15 +36,19 @@ class ClusterBuilder
     /**
      * Sets the default consistency for all queries to the cluster. Default is CONSISTENCY_ONE
      *
-     * @param int $consistency
+     * @param Consistency|int $consistency
      * @return $this
      *
      * @throws \InvalidArgumentException
      */
-    public function withDefaultConsistency(int $consistency): static
+    public function withDefaultConsistency(Consistency|int $consistency): static
     {
-        if ($consistency < Cassandra::CONSISTENCY_ANY || $consistency > Cassandra::CONSISTENCY_LOCAL_ONE) {
-            throw new \InvalidArgumentException('Invalid consistency provided. Must be between CONSISTENCY_ANY and CONSISTENCY_LOCAL_ONE');
+        if (is_int($consistency)) {
+            if ($consistency < Cassandra::CONSISTENCY_ANY || $consistency > Cassandra::CONSISTENCY_LOCAL_ONE) {
+                throw new \InvalidArgumentException('Invalid consistency provided. Must be between CONSISTENCY_ANY and CONSISTENCY_LOCAL_ONE');
+            }
+
+            $consistency = Consistency::from($consistency);
         }
 
         $this->consistency = $consistency;
