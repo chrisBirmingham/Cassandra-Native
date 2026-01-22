@@ -68,66 +68,6 @@ use CassandraNative\Statement\StatementInterface;
 
 class Cassandra
 {
-    /* @deprecated use Consistency::ANY */
-    public const CONSISTENCY_ANY          = 0x0000;
-    /* @deprecated use Consistency::ONE */
-    public const CONSISTENCY_ONE          = 0x0001;
-    /* @deprecated use Consistency::TWO */
-    public const CONSISTENCY_TWO          = 0x0002;
-    /* @deprecated use Consistency::THREE */
-    public const CONSISTENCY_THREE        = 0x0003;
-    /* @deprecated use Consistency::QUORUM */
-    public const CONSISTENCY_QUORUM       = 0x0004;
-    /* @deprecated use Consistency::ALL */
-    public const CONSISTENCY_ALL          = 0x0005;
-    /* @deprecated use Consistency::LOCAL_QUORUM */
-    public const CONSISTENCY_LOCAL_QUORUM = 0x0006;
-    /* @deprecated use Consistency::EACH_QUORUM */
-    public const CONSISTENCY_EACH_QUORUM  = 0x0007;
-    /* @deprecated use Consistency::LOCAL_ONE */
-    public const CONSISTENCY_LOCAL_ONE    = 0x000A;
-
-    /* @deprecated use ColumnType::CUSTOM */
-    public const COLUMNTYPE_CUSTOM    = 0x0000;
-    /* @deprecated use ColumnType::ASCII */
-    public const COLUMNTYPE_ASCII     = 0x0001;
-    /* @deprecated use ColumnType::BIGINT */
-    public const COLUMNTYPE_BIGINT    = 0x0002;
-    /* @deprecated use ColumnType::BLOB */
-    public const COLUMNTYPE_BLOB      = 0x0003;
-    /* @deprecated use ColumnType::BOOLEAN */
-    public const COLUMNTYPE_BOOLEAN   = 0x0004;
-    /* @deprecated use ColumnType::COUNTER */
-    public const COLUMNTYPE_COUNTER   = 0x0005;
-    /* @deprecated use ColumnType::DECIMAL */
-    public const COLUMNTYPE_DECIMAL   = 0x0006;
-    /* @deprecated use ColumnType::DOUBLE */
-    public const COLUMNTYPE_DOUBLE    = 0x0007;
-    /* @deprecated use ColumnType::FLOAT */
-    public const COLUMNTYPE_FLOAT     = 0x0008;
-    /* @deprecated use ColumnType::INT */
-    public const COLUMNTYPE_INT       = 0x0009;
-    /* @deprecated use ColumnType::TEXT */
-    public const COLUMNTYPE_TEXT      = 0x000A;
-    /* @deprecated use ColumnType::TIMESTAMP */
-    public const COLUMNTYPE_TIMESTAMP = 0x000B;
-    /* @deprecated use ColumnType::UUID */
-    public const COLUMNTYPE_UUID      = 0x000C;
-    /* @deprecated use ColumnType::VARCHAR */
-    public const COLUMNTYPE_VARCHAR   = 0x000D;
-    /* @deprecated use ColumnType::VARINT */
-    public const COLUMNTYPE_VARINT    = 0x000E;
-    /* @deprecated use ColumnType::TIMEUUID */
-    public const COLUMNTYPE_TIMEUUID  = 0x000F;
-    /* @deprecated use ColumnType::INET */
-    public const COLUMNTYPE_INET      = 0x0010;
-    /* @deprecated use ColumnType::LIST */
-    public const COLUMNTYPE_LIST      = 0x0020;
-    /* @deprecated use ColumnType::MAP */
-    public const COLUMNTYPE_MAP       = 0x0021;
-    /* @deprecated use ColumnType::SET */
-    public const COLUMNTYPE_SET       = 0x0022;
-
     protected const FLAG_COMPRESSION    = 0x01;
     protected const FLAG_TRACING        = 0x02;
     protected const FLAG_CUSTOM_PAYLOAD = 0x04;
@@ -304,7 +244,7 @@ class Cassandra
         $startBody = [
             'CQL_VERSION' => '3.0.0',
             'DRIVER_NAME' => 'PHP Cassandra Native Driver',
-            'DRIVER_VERSION' => '3.2.0'
+            'DRIVER_VERSION' => '4.0.0'
         ];
 
         if ($this->compressor instanceof CompressorInterface) {
@@ -423,10 +363,9 @@ class Cassandra
     /**
      * Queries the database using the given CQL.
      *
-     * @param StatementInterface $stmt          The query to run.
-     * @param array $values                     Values to bind in a sequential or key=>value format,
-     *                                          where key is the column's name.
-     * @param Consistency|int|null $consistency Consistency level for the operation.
+     * @param StatementInterface $stmt  The query to run.
+     * @param array $values             Values to bind in a sequential or key=>value format, where key is the column's name.
+     * @param ?Consistency $consistency Consistency level for the operation. Defaults to default configured consistency
      *
      * @return Rows Result of the query. Might be an array of rows (for
      *              SELECT), or the operation's result (for USE, CREATE,
@@ -437,16 +376,8 @@ class Cassandra
     public function execute(
         StatementInterface $stmt,
         array $values = [],
-        Consistency|int|null $consistency = null
+        ?Consistency $consistency = null
     ): Rows {
-        if (is_int($consistency)) {
-            if ($consistency < Cassandra::CONSISTENCY_ANY || $consistency > Cassandra::CONSISTENCY_LOCAL_ONE) {
-                throw new \InvalidArgumentException('Invalid consistency provided. Must be between CONSISTENCY_ANY and CONSISTENCY_LOCAL_ONE');
-            }
-
-            $consistency = Consistency::from($consistency);
-        }
-
         $consistency ??= $this->defaultConsistency;
 
         $rows = match (true) {
@@ -558,10 +489,7 @@ class Cassandra
                 $type = $value[1];
 
                 if (!($type instanceof ColumnType)) {
-                    $type = ColumnType::tryFrom($type);
-                    if ($type === null) {
-                        throw new QueryException("Invalid field type provided for column $key");
-                    }
+                    throw new \InvalidArgumentException("Invalid field type provided for column $key. Must be one of type ColumnType");
                 }
 
                 $data = $this->packValue($value[0], $type);

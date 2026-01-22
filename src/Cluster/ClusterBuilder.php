@@ -34,23 +34,15 @@ class ClusterBuilder
     protected bool $useCompression = false;
 
     /**
-     * Sets the default consistency for all queries to the cluster. Default is CONSISTENCY_ONE
+     * Sets the default consistency for all queries to the cluster. Default is Consistency::ONE
      *
-     * @param Consistency|int $consistency
+     * @param Consistency $consistency
      * @return $this
      *
      * @throws \InvalidArgumentException
      */
-    public function withDefaultConsistency(Consistency|int $consistency): static
+    public function withDefaultConsistency(Consistency $consistency): static
     {
-        if (is_int($consistency)) {
-            if ($consistency < Cassandra::CONSISTENCY_ANY || $consistency > Cassandra::CONSISTENCY_LOCAL_ONE) {
-                throw new \InvalidArgumentException('Invalid consistency provided. Must be between CONSISTENCY_ANY and CONSISTENCY_LOCAL_ONE');
-            }
-
-            $consistency = Consistency::from($consistency);
-        }
-
         $this->consistency = $consistency;
         return $this;
     }
