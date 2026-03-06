@@ -4,13 +4,6 @@ namespace CassandraNative\SSL;
 
 class SSLOptions
 {
-    /**
-     * @param ?string $trustedCerts,
-     * @param bool $verify,
-     * @param ?string $clientCert,
-     * @param ?string $privateKey,
-     * @param ?string $passphrase
-     */
     public function __construct(
         protected ?string $trustedCerts,
         protected bool $verify,

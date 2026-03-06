@@ -38,7 +38,7 @@ enum ErrorCode : int
      *
      * @throws CassandraException
      */
-    public function toException(string $errorMessage): void
+    public function toException(string $errorMessage): never
     {
         $exception = match ($this) {
             self::SERVER_ERROR, self::OVERLOADED_ERROR, self::UNAVAILABLE_ERROR, self::IS_BOOTSTRAPPING_ERROR, self::TRUNCATE_ERROR => ServerException::class,

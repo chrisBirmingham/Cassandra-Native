@@ -184,7 +184,7 @@ class Socket
         $this->stream = false;
     }
 
-    function __destruct()
+    public function __destruct()
     {
         if ($this->persistent) {
             return;

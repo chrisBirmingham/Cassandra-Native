@@ -30,14 +30,14 @@ use CassandraNative\Statement\StatementInterface;
  * A native Cassandra connector for PHP based on the CQL binary protocol v3,
  * without the need for any external extensions.
  *
- * Requires PHP version >8.1, and Cassandra >1.2.
+ * Requires PHP version >8.2, and Cassandra >1.2.
  *
  * Usage and more information is found on README.md
  *
  * The MIT License (MIT)
  *
  * Copyright (c) 2023 Uri Hartmann
- * Copyright (c) 2025 Christopher Birmingham
+ * Copyright (c) 2026 Christopher Birmingham
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -153,20 +153,16 @@ class Cassandra
         // updates the seek position from ftell
         $persistent = $this->socket->isPersistent();
 
-        // TODO Cannot check compatibility due to persistent connections being compressed. This bug
-        // will need fixing and until then we will have to force the compression type.
-
-        // Send an OPTIONS request and check our clients compatibility
-        // Have to send on every new connection as we don't know whether to set compression
-        // until we have this response. Might be a good idea to add caching in the future
-        // $optionsMap = $this->sendOptionsFrame();
-        // $this->checkCompatibility($clusterOptions, $optionsMap);
-
-        // Don't send startup & authentication if we're using a persistent connection
+        // Don't send options, startup & authentication if we're using a persistent connection
         if ($persistent) {
             return;
         }
 
+        // Send an OPTIONS request and check our clients compatibility
+        $optionsMap = $this->sendOptionsFrame();
+        $this->checkCompatibility($optionsMap);
+
+        // Now we're compatible, lets be friends
         $this->sendStartupFrame($clusterOptions);
     }
 
@@ -199,8 +195,7 @@ class Cassandra
             throw new ProtocolException("Missing SUPPORTED packet. Got $opcode instead", $opcode);
         }
 
-        $body = $frame['body'];
-        return $this->unpackMultimap($body);
+        return $this->unpackMultimap($frame['body']);
     }
 
     /**
