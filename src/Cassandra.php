@@ -79,8 +79,6 @@ class Cassandra
 
     protected Socket $socket;
 
-    protected string $fullFrame = '';
-
     protected Consistency $defaultConsistency;
 
     protected ?CompressorInterface $compressor;
@@ -569,8 +567,6 @@ class Cassandra
         // <byte version><byte flags><uint16 stream><byte opcode><int length>
         $opcode = Opcode::from(ord($header[4]));
 
-        $this->fullFrame = $header . $body;
-
         if ($flags & self::FLAG_COMPRESSION) {
             if (($body = $this->compressor->uncompress($body)) === false) {
                 throw new CompressionException('Could not uncompress response from Cassandra');
@@ -687,7 +683,7 @@ class Cassandra
                 ]];
         }
 
-        throw new ProtocolException('Unknown result kind ' . $kind . ' full frame: ' . bin2hex($this->fullFrame));
+        throw new ProtocolException("Unknown result kind $kind");
     }
 
     /**
