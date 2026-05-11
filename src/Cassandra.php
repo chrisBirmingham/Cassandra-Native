@@ -77,76 +77,28 @@ class Cassandra
 
     protected const MAX_STREAM_ID = 32768;
 
-    protected Socket $socket;
-
-    protected Consistency $defaultConsistency;
-
-    protected ?CompressorInterface $compressor;
-
-    protected bool $usingPersistence;
-
     /**
      * @param ClusterOptions $options
      * @throws CassandraException
      */
-    public function __construct(ClusterOptions $options)
-    {
-        $this->socket = new Socket();
-        $this->compressor = $options->compressor;
-        $this->defaultConsistency = $options->consistency;
-        $this->usingPersistence = $options->persistent;
-        $this->establishConnection($options);
+    public function __construct(
+        protected Socket $socket,
+        protected Consistency $defaultConsistency,
+        protected ?CompressorInterface $compressor,
+        protected ?AuthProviderInterface $authProvider,
+        protected bool $usingPersistence
+    ) {
+        $this->establishConnection();
     }
 
     /**
      * Establishes a connection with a cassandra host based on options provided
      * by the ClusterBuilder
      * 
-     * @param ClusterOptions $clusterOptions
-     * 
      * @throws CassandraException
      */
-    protected function establishConnection(ClusterOptions $clusterOptions): void
+    protected function establishConnection(): void
     {
-        $connectionErrors = [];
-        $hosts = $clusterOptions->hosts;
-        $maxAttempts = min(count($hosts), $clusterOptions->attempts);
-        $attempt = 1;
-
-        do {
-            // Choose a random contact host to connect too. If it fails try another one until we either connect to a
-            // host or hit max connection attempts
-            $index = array_rand($hosts);
-            $host = $hosts[$index];
-            array_splice($hosts, $index, 1);
-
-            try {
-                $this->socket->connect(
-                    $host,
-                    $clusterOptions->port,
-                    $this->usingPersistence,
-                    $clusterOptions->connectTimeout
-                );
-
-                break;
-            } catch (ConnectionException $e) {
-                $connectionErrors[$host] = $e->getMessage();
-
-                if ($attempt === $maxAttempts) {
-                    throw new NoHostsAvailableException("Failed to connect to a Cassandra Host after $maxAttempts attempt(s)", $connectionErrors);
-                }
-
-                $attempt++;
-            }
-        } while (true);
-
-        $sslOptions = $clusterOptions->ssl;
-        if ($sslOptions instanceof SSLOptions) {
-            $this->socket->enableSSL($sslOptions->get());
-        }
-
-        $this->socket->setTimeout($clusterOptions->requestTimeout);
-
         // Get whether we have a persistent connection before sending options request as that
         // updates the seek position from ftell
         $persistent = $this->socket->isPersistent();
@@ -161,7 +113,7 @@ class Cassandra
         $this->checkCompatibility($optionsMap);
 
         // Now we're compatible, lets be friends
-        $this->sendStartupFrame($clusterOptions);
+        $this->sendStartupFrame();
     }
 
     /**
@@ -232,7 +184,7 @@ class Cassandra
      *
      * @throws CassandraException
      */
-    protected function sendStartupFrame(ClusterOptions $clusterOptions): void
+    protected function sendStartupFrame(): void
     {
         $startBody = [
             'CQL_VERSION' => '3.0.0',
@@ -248,32 +200,29 @@ class Cassandra
         $frameBody = $this->packStringMap($startBody);
         $this->writeFrame(Opcode::STARTUP, $frameBody);
 
-        $this->startupResult($clusterOptions);
+        $this->startupResult();
     }
 
     /**
      * Retrieves the result of a STARTUP request
      *
-     * @param ClusterOptions $clusterOptions
-     *
      * @throws CassandraException
      */
-    protected function startupResult(ClusterOptions $clusterOptions): void
+    protected function startupResult(): void
     {
-        $authProvider = $clusterOptions->authProvider;
         $frame = $this->readFrame();
         $opcode = $frame['opcode'];
         $body = $frame['body'];
 
         switch ($opcode) {
             case Opcode::READY:
-                if ($authProvider instanceof AuthProviderInterface) {
+                if ($this->authProvider instanceof AuthProviderInterface) {
                     throw new ConnectionException("Client is configured with an auth provider but Cassandra didn't issue an auth challenge");
                 }
                 break;
             case Opcode::AUTHENTICATE:
                 $offset = 0;
-                $this->handleAuth($this->popString($body, $offset), $authProvider);
+                $this->handleAuth($this->popString($body, $offset));
                 break;
             default:
                 throw new ProtocolException("Missing READY or AUTHENTICATE packet. Got $opcode instead", $opcode);
@@ -284,21 +233,20 @@ class Cassandra
      * Respond to an authentication challenge issued by the cassandra node
      *
      * @param string $authMechanism
-     * @param ?AuthProviderInterface $authProvider
      *
      * @throws CassandraException
      */
-    protected function handleAuth(string $authMechanism, ?AuthProviderInterface $authProvider): void
+    protected function handleAuth(string $authMechanism): void
     {
-        if (!($authProvider instanceof AuthProviderInterface)) {
+        if (!($this->authProvider instanceof AuthProviderInterface)) {
             throw new AuthenticationException('Cassandra sent an auth challenge but an Authentication provider was not provided');
         }
 
-        if ($authProvider->mechanism() !== $authMechanism) {
+        if ($this->authProvider->mechanism() !== $authMechanism) {
             throw new AuthenticationException("Cassandra sent back an auth challenge for $authMechanism which doesn't match the one the client is configured for");
         }
 
-        $authResponseBody = $authProvider->response();
+        $authResponseBody = $this->authProvider->response();
         $authResponseBody = $this->packLongString($authResponseBody);
         $this->writeFrame(Opcode::AUTH_RESPONSE, $authResponseBody);
 
@@ -311,13 +259,13 @@ class Cassandra
                 // The initial auth response can send back a success without a challenge
                 return;
             case Opcode::AUTH_CHALLENGE:
-                if (!($authProvider instanceof AuthChallengeProviderInterface)) {
+                if (!($this->authProvider instanceof AuthChallengeProviderInterface)) {
                     throw new AuthenticationException("Cassandra issued a challenge response but provider doesn't support challenges");
                 }
 
                 // @todo This code could infinite loop. Possibly add a challenge limit
                 do {
-                    $authChallengeResponseBody = $authProvider->challengeResponse($body);
+                    $authChallengeResponseBody = $this->authProvider->challengeResponse($body);
                     $authChallengeResponseBody = $this->packLongString($authChallengeResponseBody);
                     $this->writeFrame(Opcode::AUTH_RESPONSE, $authChallengeResponseBody);
 
