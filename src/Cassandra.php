@@ -99,15 +99,12 @@ class Cassandra
             return;
         }
 
-        // We only support checking compression at the moment. Early return if we're
-        // not set to use it
-        if (!($this->compressor instanceof CompressorInterface)) {
-            return;
+        // We only support checking compression at the moment. Don't send options if we don't have one set
+        if ($this->compressor instanceof CompressorInterface) {
+            // Send an OPTIONS request and check our clients compatibility
+            $optionsMap = $this->sendOptionsFrame();
+            $this->checkCompatibility($optionsMap);
         }
-
-        // Send an OPTIONS request and check our clients compatibility
-        $optionsMap = $this->sendOptionsFrame();
-        $this->checkCompatibility($optionsMap);
 
         // Now we're compatible, lets be friends
         $this->sendStartupFrame();
