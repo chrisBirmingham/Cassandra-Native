@@ -5,11 +5,8 @@ namespace CassandraNative\Cluster;
 use CassandraNative\Auth\AuthProviderInterface;
 use CassandraNative\Cassandra;
 use CassandraNative\Compression\Lz4Compressor;
-use CassandraNative\Connection\Socket;
 use CassandraNative\Connection\SocketFactory;
 use CassandraNative\Consistency;
-use CassandraNative\Exception\ConnectionException;
-use CassandraNative\Exception\NoHostsAvailableException;
 use CassandraNative\SSL\SSLOptions;
 
 class ClusterBuilder
@@ -196,47 +193,20 @@ class ClusterBuilder
             }
         }
 
+        $socketFactory = new SocketFactory(
+            $this->port,
+            $this->connectTimeout,
+            $this->requestTimeout,
+            $this->persistent,
+            $this->ssl
+        );
+
         return new Cassandra(
-            $this->connectToCluster(),
+            $socketFactory->connect($this->hosts, min(count($this->hosts), $this->attempts)),
             $this->consistency,
             $compressor,
             $this->authProvider,
             $this->persistent
         );
-    }
-
-    protected function connectToCluster(): Socket
-    {
-        $socketFactory = new SocketFactory();
-        $connectionErrors = [];
-        $maxAttempts = min(count($this->hosts), $this->attempts);
-        $attempt = 1;
-
-        do {
-            // Choose a random contact host to connect too. If it fails try another one until we either connect to a
-            // host or hit max connection attempts
-            $index = array_rand($this->hosts);
-            $host = $this->hosts[$index];
-            array_splice($this->hosts, $index, 1);
-
-            try {
-                return SocketFactory->connect(
-                    $host,
-                    $this->port,
-                    $this->connectTimeout,
-                    $this->requestTimeout,
-                    $this->persistent,
-                    $this->ssl
-                );
-            } catch (ConnectionException $e) {
-                $connectionErrors[$host] = $e->getMessage();
-
-                if ($attempt === $maxAttempts) {
-                    throw new NoHostsAvailableException("Failed to connect to a Cassandra Host after $maxAttempts attempt(s)", $connectionErrors);
-                }
-
-                $attempt++;
-            }
-        } while (true);
     }
 }
