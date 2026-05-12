@@ -1,9 +1,5 @@
 <?php
 
-//TODO:
-// Implement Tuple
-// Implement UDT
-
 namespace CassandraNative;
 
 use CassandraNative\Auth\AuthChallengeProviderInterface;
@@ -97,12 +93,15 @@ class Cassandra
      */
     protected function establishConnection(): void
     {
-        // Get whether we have a persistent connection before sending options request as that
-        // updates the seek position from ftell
-        $persistent = $this->socket->isPersistent();
+        // Don't send options, startup & authentication if we're on a persistent
+        // connection as we've already done that work before
+        if ($this->socket->isPersistent()) {
+            return;
+        }
 
-        // Don't send options, startup & authentication if we're using a persistent connection
-        if ($persistent) {
+        // We only support checking compression at the moment. Early return if we're
+        // not set to use it
+        if (!($this->compressor instanceof CompressorInterface)) {
             return;
         }
 
@@ -149,17 +148,12 @@ class Cassandra
     /**
      * Checks if the client and the connected cassandra node support the same options
      *
-     * @param array $optionsMap              The options map from the cluster to check against
+     * @param array $optionsMap The options map from the cluster to check against
      *
      * @throws CassandraException
      */
     protected function checkCompatibility(array $optionsMap): void
     {
-        // We only support checking compression at the moment. Early return if we're not set to use it
-        if (empty($this->compressor)) {
-            return;
-        }
-
         $supportedCompressors = $optionsMap['COMPRESSION'] ?? [];
 
         if (empty($supportedCompressors)) {
