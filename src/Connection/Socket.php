@@ -92,19 +92,15 @@ class Socket
     public function close(): void
     {
         if (!$this->stream) {
-            return;
+            fclose($this->stream);
+            $this->stream = false;
         }
-
-        fclose($this->stream);
-        $this->stream = false;
     }
 
     public function __destruct()
     {
-        if ($this->persistent) {
-            return;
+        if (!$this->persistent) {
+            $this->close();
         }
-
-        $this->close();
     }
 }

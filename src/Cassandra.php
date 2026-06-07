@@ -624,6 +624,24 @@ class Cassandra
     }
 
     /**
+     * Retrives the returned column value. If the value is a CUSTOM type, retrieve
+     * the name of the CUSTOM type
+     *
+     * @param string $body    Metadata body.
+     * @param int $bodyOffset Metadata body offset to start from.
+     *
+     * @return ColumnType The type of the returned column
+     */
+    protected function getColumnType(string $body, int &$bodyOffset): ColumnType
+    {
+        $type = ColumnType::from($this->popShort($body, $bodyOffset));
+
+        return ($type == ColumnType::CUSTOM)
+            ? ColumnType::from($this->popString($body, $bodyOffset))
+            : $type;
+    }
+
+    /**
      * Parses a RESULT Rows metadata (also used for RESULT Prepared), starting
      * from the offset, and advancing it in the process.
      *
@@ -660,38 +678,30 @@ class Cassandra
             }
 
             $columnName = $this->popString($body, $bodyOffset);
-            $columnType = $this->popShort($body, $bodyOffset);
-            $columnSubType1 = 0x0000;
-            $columnSubType2 = 0x0000;
+            $columnType = $this->getColumnType($this->popShort($body, $bodyOffset));
+            $columnSubType1 = ColumnType::CUSTOM;
+            $columnSubType2 = ColumnType::CUSTOM;
 
-            if ($columnType === ColumnType::CUSTOM->value) {
-                $columnType = $this->popString($body, $bodyOffset);
-            } elseif (in_array($columnType, [ColumnType::LIST->value, ColumnType::SET->value])) {
-                $columnSubType1 = $this->popShort($body, $bodyOffset);
-                if ($columnSubType1 === ColumnType::CUSTOM->value) {
-                    $columnSubType1 = $this->popString($body, $bodyOffset);
-                }
-            } elseif ($columnType === ColumnType::MAP->value) {
-                $columnSubType1 = $this->popShort($body, $bodyOffset);
-                if ($columnSubType1 === ColumnType::CUSTOM->value) {
-                    $columnSubType1 = $this->popString($body, $bodyOffset);
-                }
-
-                $columnSubType2 = $this->popShort($body, $bodyOffset);
-                if ($columnSubType2 === ColumnType::CUSTOM->value) {
-                    $columnSubType2 = $this->popString($body, $bodyOffset);
-                }
+            switch ($columnType) {
+                case ColumnType::LIST:
+                case ColumnType::SET:
+                    $columnSubType1 = $this->getColumnType($body, $bodyOffset);
+                    break;
+                case ColumnType::MAP->value:
+                    $columnSubType1 = $this->getColumnType($body, $bodyOffset);
+                    $columnSubType2 = $this->getColumnType($body, $bodyOffset);
             }
 
             $columns[] = [
                 'keyspace' => $keyspace,
                 'table' => $table,
                 'name' => $columnName,
-                'type' => ColumnType::from($columnType),
-                'subtype1' => ColumnType::from($columnSubType1),
-                'subtype2' => ColumnType::from($columnSubType2)
+                'type' => $columnType,
+                'subtype1' => $columnSubType1,
+                'subtype2' => $columnSubType2
             ];
         }
+
         return $columns;
     }
 

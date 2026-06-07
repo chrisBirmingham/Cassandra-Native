@@ -71,7 +71,7 @@ class SocketFactory
      */
     protected function bindSocket(string $host): Socket
     {
-        $address = 'tcp://' . $host . ':' . $this->port;
+        $address = "tcp://$host:$this->port";
         $connectionFlags = STREAM_CLIENT_CONNECT;
 
         if ($this->persistent) {
@@ -87,7 +87,7 @@ class SocketFactory
         );
 
         if ($socket === false) {
-            throw new ConnectionException('Socket connect to ' . $host . ':' . $this->port . ' failed: ' . '(' . $errno . ') ' . $errstr);
+            throw new ConnectionException("Socket connect to $address failed: ($errno) $errstr");
         }
 
         return socket;
