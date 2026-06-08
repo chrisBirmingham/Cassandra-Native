@@ -624,24 +624,6 @@ class Cassandra
     }
 
     /**
-     * Retrives the returned column value. If the value is a CUSTOM type, retrieve
-     * the name of the CUSTOM type
-     *
-     * @param string $body    Metadata body.
-     * @param int $bodyOffset Metadata body offset to start from.
-     *
-     * @return ColumnType The type of the returned column
-     */
-    protected function getColumnType(string $body, int &$bodyOffset): ColumnType
-    {
-        $type = ColumnType::from($this->popShort($body, $bodyOffset));
-
-        return ($type == ColumnType::CUSTOM)
-            ? ColumnType::from($this->popString($body, $bodyOffset))
-            : $type;
-    }
-
-    /**
      * Parses a RESULT Rows metadata (also used for RESULT Prepared), starting
      * from the offset, and advancing it in the process.
      *
@@ -678,18 +660,18 @@ class Cassandra
             }
 
             $columnName = $this->popString($body, $bodyOffset);
-            $columnType = $this->getColumnType($this->popShort($body, $bodyOffset));
+            $columnType = ColumnType::from($this->popShort($body, $bodyOffset));
             $columnSubType1 = ColumnType::CUSTOM;
             $columnSubType2 = ColumnType::CUSTOM;
 
             switch ($columnType) {
                 case ColumnType::LIST:
                 case ColumnType::SET:
-                    $columnSubType1 = $this->getColumnType($body, $bodyOffset);
+                    $columnSubType1 = ColumnType::from($body, $bodyOffset);
                     break;
-                case ColumnType::MAP->value:
-                    $columnSubType1 = $this->getColumnType($body, $bodyOffset);
-                    $columnSubType2 = $this->getColumnType($body, $bodyOffset);
+                case ColumnType::MAP:
+                    $columnSubType1 = ColumnType::from($body, $bodyOffset);
+                    $columnSubType2 = ColumnType::from($body, $bodyOffset);
             }
 
             $columns[] = [
@@ -876,40 +858,27 @@ class Cassandra
     /**
      * Packs a COLUMNTYPE_BOOLEAN value to its binary form.
      *
-     * @param ?bool $value Value to pack.
+     * @param bool $value Value to pack.
      *
      * @return string Binary form of the value.
      */
-    protected function packBoolean(?bool $value): string
+    protected function packBoolean(bool $value): string
     {
-        if ($value === NULL) {
-            return '';
-        }
-
-        return ($value)? chr(1) : chr(0);
+        return chr($value ? 1 : 0);
     }
 
     /**
      * Unpacks a COLUMNTYPE_BOOLEAN value from its binary form.
+     * Cassandra docs say to tread 0 as false and any other value as true
      *
      * @param string $content Content to unpack.
      *
-     * @return ?bool Unpacked value.
+     * @return bool Unpacked value.
      */
-    protected function unpackBoolean(string $content): ?bool
+    protected function unpackBoolean(string $content): bool
     {
-        if (strlen($content) > 0) {
-            $c = ord($content[0]);
-            if ($c == 1) {
-                return true;
-            } elseif ($c == 0) {
-                return false;
-            } else {
-                return null;
-            }
-        }
-
-        return null;
+        $c = ord($content[0]);
+        return $c != 0;
     }
 
     /**
