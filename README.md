@@ -1,17 +1,15 @@
 # Cassandra Native
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-A native [Apache Cassandra](https://cassandra.apache.org) and
-[ScyllaDB](https://www.scylladb.com) connector for PHP applications
+A native [Apache Cassandra][1] and
+[ScyllaDB][2] connector for PHP applications
 using the CQL binary protocol (v4), without the need for an external
 extension.
 
-Requires [PHP](https://www.php.net/) version >=8.2, Cassandra >1.2,
+Requires [PHP][3] version >=8.2, Cassandra >1.2,
 and any ScyllaDB version.
 
 Much of the API is built to emulate
-the [Datastax PHP Driver](https://docs.datastax.com/en/developer/php-driver/1.3/index.html).
+the [Datastax PHP Driver][4].
 
 Original work by Uri Hartmann
 
@@ -239,3 +237,8 @@ Unlike Simple Statements, you don't need to specify the bound values type.
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
     DEALINGS IN THE SOFTWARE.
+
+[1]: https://cassandra.apache.org
+[2]: https://www.scylladb.com
+[3]: https://www.php.net
+[4]: https://docs.datastax.com/en/developer/php-driver/1.3/index.html
