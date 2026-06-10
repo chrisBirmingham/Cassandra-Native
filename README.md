@@ -175,7 +175,7 @@ $stmt = new \CassandraNative\Statement\SimpleStatement('SELECT col1, col2, col3 
 $rows = $cassandra->execute(
     $stmt,
     [
-        [1001, Cassandra::ColumnType::BIGINT]
+        [1001, Cassandra::ColumnType::Bigint]
     ]
 );
 
@@ -185,7 +185,7 @@ $stmt = new \CassandraNative\Statement\SimpleStatement('SELECT col1, col2, col3 
 $rows = $cassandra->execute(
     $stmt,
     [
-        'id' => [1001, Cassandra::ColumnType::BIGINT]
+        'id' => [1001, Cassandra::ColumnType::Bigint]
     ]
 );
 ```

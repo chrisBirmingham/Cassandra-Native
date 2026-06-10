@@ -9,6 +9,7 @@ use CassandraNative\Compression\CompressorInterface;
 use CassandraNative\Connection\Socket;
 use CassandraNative\Exception\AuthenticationException;
 use CassandraNative\Exception\CassandraException;
+use CassandraNative\Exception\ClientException;
 use CassandraNative\Exception\CompressionException;
 use CassandraNative\Exception\ConnectionException;
 use CassandraNative\Exception\ProtocolException;
@@ -119,7 +120,7 @@ class Cassandra
      */
     protected function sendOptionsFrame(): array
     {
-        $this->writeFrame(Opcode::OPTIONS);
+        $this->writeFrame(Opcode::Options);
         return $this->supportedResult();
     }
 
@@ -135,7 +136,7 @@ class Cassandra
         $frame = $this->readFrame();
         $opcode = $frame['opcode'];
 
-        if ($opcode != Opcode::SUPPORTED) {
+        if ($opcode != Opcode::Supported) {
             throw new ProtocolException("Missing SUPPORTED packet. Got $opcode instead", $opcode);
         }
 
@@ -154,12 +155,12 @@ class Cassandra
         $supportedCompressors = $optionsMap['COMPRESSION'] ?? [];
 
         if (empty($supportedCompressors)) {
-            throw new ProtocolException(
+            throw new ClientException(
                 'Client configured to use compression but connected Cassandra Cluster only supports uncompressed communication'
             );
         }
 
-        throw new ProtocolException(
+        throw new ClientException(
             sprintf(
                 'Client configured to use %s compression but Cassandra Cluster supports %s compression',
                 $this->compressor->getName(),
@@ -187,7 +188,7 @@ class Cassandra
 
         // Writes a STARTUP frame
         $frameBody = $this->packStringMap($startBody);
-        $this->writeFrame(Opcode::STARTUP, $frameBody);
+        $this->writeFrame(Opcode::Startup, $frameBody);
 
         $this->startupResult();
     }
@@ -204,12 +205,12 @@ class Cassandra
         $body = $frame['body'];
 
         switch ($opcode) {
-            case Opcode::READY:
+            case Opcode::Ready:
                 if ($this->authProvider instanceof AuthProviderInterface) {
                     throw new ConnectionException("Client is configured with an auth provider but Cassandra didn't issue an auth challenge");
                 }
                 break;
-            case Opcode::AUTHENTICATE:
+            case Opcode::Authenticate:
                 $offset = 0;
                 $this->handleAuth($this->popString($body, $offset));
                 break;
@@ -237,17 +238,17 @@ class Cassandra
 
         $authResponseBody = $this->authProvider->response();
         $authResponseBody = $this->packLongString($authResponseBody);
-        $this->writeFrame(Opcode::AUTH_RESPONSE, $authResponseBody);
+        $this->writeFrame(Opcode::AuthResponse, $authResponseBody);
 
         $frame = $this->readFrame();
         $opcode = $frame['opcode'];
         $body = $frame['body'];
 
         switch ($opcode) {
-            case Opcode::AUTH_SUCCESS:
+            case Opcode::AuthSuccess:
                 // The initial auth response can send back a success without a challenge
                 return;
-            case Opcode::AUTH_CHALLENGE:
+            case Opcode::AuthChallenge:
                 if (!($this->authProvider instanceof AuthChallengeProviderInterface)) {
                     throw new AuthenticationException("Cassandra issued a challenge response but provider doesn't support challenges");
                 }
@@ -256,12 +257,12 @@ class Cassandra
                 do {
                     $authChallengeResponseBody = $this->authProvider->challengeResponse($body);
                     $authChallengeResponseBody = $this->packLongString($authChallengeResponseBody);
-                    $this->writeFrame(Opcode::AUTH_RESPONSE, $authChallengeResponseBody);
+                    $this->writeFrame(Opcode::AuthResponse, $authChallengeResponseBody);
 
                     $frame = $this->readFrame();
                     $opcode = $frame['opcode'];
                     $body = $frame['body'];
-                } while ($opcode == Opcode::AUTH_CHALLENGE);
+                } while ($opcode == Opcode::AuthChallenge);
                 break;
             default:
                 throw new ProtocolException("Missing AUTH_SUCCESS or AUTH_CHALLENGE packet. Got $opcode instead", $opcode);
@@ -333,7 +334,7 @@ class Cassandra
         $frame = $this->packLongString($cql);
 
         // Writes a PREPARE frame and return the result
-        $retval = $this->requestResult(Opcode::PREPARE, $frame);
+        $retval = $this->requestResult(Opcode::Prepare, $frame);
 
         return new PreparedStatement($retval['id'], $retval['columns']);
     }
@@ -382,7 +383,7 @@ class Cassandra
         }
 
         // Writes a EXECUTE frame and return the result
-        return $this->requestResult(Opcode::EXECUTE, $frame);
+        return $this->requestResult(Opcode::Execute, $frame);
     }
 
     /**
@@ -433,7 +434,7 @@ class Cassandra
             $frame .= $this->packByte(0x00);
         }
 
-        return $this->requestResult(Opcode::QUERY, $frame);
+        return $this->requestResult(Opcode::Query, $frame);
     }
 
     /**
@@ -460,11 +461,11 @@ class Cassandra
         $opcode = $frame['opcode'];
 
         // Parses the incoming frame
-        if ($opcode == Opcode::RESULT) {
+        if ($opcode == Opcode::Result) {
             return $this->parseResult($frame['body']);
         }
 
-        throw new ProtocolException('Unknown opcode returned from cassandra', $opcode);
+        throw new ProtocolException("Missing RESULT packet. Got $opcode instead", $opcode);
     }
 
     /**
@@ -522,7 +523,7 @@ class Cassandra
         }
 
         // If we got an error - trigger it and return an error
-        if ($opcode == Opcode::ERROR) {
+        if ($opcode == Opcode::Error) {
             // ERROR: <int code><string msg>
             $errCode = $this->intFromBin($body, 0, 4);
             $bodyOffset = 4;  // Must be passed by reference
@@ -583,14 +584,14 @@ class Cassandra
         $kind = $this->popInt($body, $bodyOffset);
 
         switch (ResultKind::from($kind)) {
-            case ResultKind::VOID:
+            case ResultKind::Void:
                 return [['result' => 'success']];
-            case ResultKind::ROWS:
+            case ResultKind::Rows:
                 return $this->parseRows($body, $bodyOffset);
-            case ResultKind::SET_KEYSPACE:
+            case ResultKind::SetKeyspace:
                 $keyspace = $this->popString($body, $bodyOffset);
                 return [['keyspace' => $keyspace]];
-            case ResultKind::PREPARED:
+            case ResultKind::Prepared:
                 // <string id><metadata>
                 $id = base64_encode($this->popString($body, $bodyOffset));
                 $metadata = $this->parseRowsMetadata($body, $bodyOffset, true);
@@ -608,7 +609,7 @@ class Cassandra
                     'id' => $id,
                     'columns' => $columns
                 ];
-            case ResultKind::SCHEMA_CHANGE:
+            case ResultKind::SchemaChange:
                 // <string change><string keyspace><string table>
                 $change = $this->popString($body, $bodyOffset);
                 $target = $this->popString($body, $bodyOffset);
@@ -618,9 +619,9 @@ class Cassandra
                     'target' => $target,
                     'options' => $options
                 ]];
+            default:
+                throw new ProtocolException("Unknown result kind $kind returned");
         }
-
-        throw new ProtocolException("Unknown result kind $kind");
     }
 
     /**
@@ -661,15 +662,15 @@ class Cassandra
 
             $columnName = $this->popString($body, $bodyOffset);
             $columnType = ColumnType::from($this->popShort($body, $bodyOffset));
-            $columnSubType1 = ColumnType::CUSTOM;
-            $columnSubType2 = ColumnType::CUSTOM;
+            $columnSubType1 = ColumnType::Custom;
+            $columnSubType2 = ColumnType::Custom;
 
             switch ($columnType) {
-                case ColumnType::LIST:
-                case ColumnType::SET:
+                case ColumnType::List:
+                case ColumnType::Set:
                     $columnSubType1 = ColumnType::from($body, $bodyOffset);
                     break;
-                case ColumnType::MAP:
+                case ColumnType::Map:
                     $columnSubType1 = ColumnType::from($body, $bodyOffset);
                     $columnSubType2 = ColumnType::from($body, $bodyOffset);
             }
@@ -740,23 +741,23 @@ class Cassandra
     protected function packValue(
         mixed $value,
         ColumnType $type,
-        ColumnType $subtype1 = ColumnType::CUSTOM,
-        ColumnType $subtype2 = ColumnType::CUSTOM
+        ColumnType $subtype1 = ColumnType::Custom,
+        ColumnType $subtype2 = ColumnType::Custom
     ): string {
         return match ($type) {
-            ColumnType::CUSTOM, ColumnType::BLOB => $this->packBlob($value),
-            ColumnType::ASCII, ColumnType::TEXT, ColumnType::VARCHAR => $value,
-            ColumnType::BIGINT, ColumnType::COUNTER, ColumnType::TIMESTAMP => $this->packBigint($value),
-            ColumnType::BOOLEAN => $this->packBoolean($value),
-            ColumnType::DECIMAL => $this->packDecimal($value),
-            ColumnType::DOUBLE => $this->packDouble($value),
-            ColumnType::FLOAT => $this->packFloat($value),
-            ColumnType::INT => $this->packInt($value),
-            ColumnType::UUID, ColumnType::TIMEUUID => $this->packUuid($value),
-            ColumnType::VARINT => $this->packVarInt($value),
-            ColumnType::INET => $this->packInet($value),
-            ColumnType::LIST, ColumnType::SET => $this->packList($value, $subtype1),
-            ColumnType::MAP => $this->packMap($value, $subtype1, $subtype2)
+            ColumnType::Custom, ColumnType::Blob => $this->packBlob($value),
+            ColumnType::Ascii, ColumnType::Text, ColumnType::Varchar => $value,
+            ColumnType::Bigint, ColumnType::Counter, ColumnType::Timestamp => $this->packBigint($value),
+            ColumnType::Boolean => $this->packBoolean($value),
+            ColumnType::Decimal => $this->packDecimal($value),
+            ColumnType::Double => $this->packDouble($value),
+            ColumnType::Float => $this->packFloat($value),
+            ColumnType::Int => $this->packInt($value),
+            ColumnType::Uuid, ColumnType::Timeuuid => $this->packUuid($value),
+            ColumnType::Varint => $this->packVarInt($value),
+            ColumnType::Inet => $this->packInet($value),
+            ColumnType::List, ColumnType::Set => $this->packList($value, $subtype1),
+            ColumnType::Map => $this->packMap($value, $subtype1, $subtype2)
         };
     }
 
@@ -776,27 +777,27 @@ class Cassandra
     protected function unpackValue(
         ?string $content,
         ColumnType $type,
-        ColumnType $subtype1 = ColumnType::CUSTOM,
-        ColumnType $subtype2 = ColumnType::CUSTOM
+        ColumnType $subtype1 = ColumnType::Custom,
+        ColumnType $subtype2 = ColumnType::Custom
     ): mixed {
         if ($content === NULL) {
             return NULL;
         }
 
         return match ($type) {
-            ColumnType::CUSTOM, ColumnType::BLOB => $this->unpackBlob($content),
-            ColumnType::ASCII, ColumnType::TEXT, ColumnType::VARCHAR => $content,
-            ColumnType::BIGINT, ColumnType::COUNTER, ColumnType::TIMESTAMP => $this->unpackBigint($content),
-            ColumnType::BOOLEAN => $this->unpackBoolean($content),
-            ColumnType::DECIMAL => $this->unpackDecimal($content),
-            ColumnType::DOUBLE => $this->unpackDouble($content),
-            ColumnType::FLOAT => $this->unpackFloat($content),
-            ColumnType::INT => $this->unpackInt($content),
-            ColumnType::UUID, ColumnType::TIMEUUID => $this->unpackUuid($content),
-            ColumnType::VARINT => $this->unpackVarInt($content),
-            ColumnType::INET => $this->unpackInet($content),
-            ColumnType::LIST, ColumnType::SET => $this->unpackList($content, $subtype1),
-            ColumnType::MAP => $this->unpackMap($content, $subtype1, $subtype2)
+            ColumnType::Custom, ColumnType::Blob => $this->unpackBlob($content),
+            ColumnType::Ascii, ColumnType::Text, ColumnType::Varchar => $content,
+            ColumnType::Bigint, ColumnType::Counter, ColumnType::Timestamp => $this->unpackBigint($content),
+            ColumnType::Boolean => $this->unpackBoolean($content),
+            ColumnType::Decimal => $this->unpackDecimal($content),
+            ColumnType::Double => $this->unpackDouble($content),
+            ColumnType::Float => $this->unpackFloat($content),
+            ColumnType::Int => $this->unpackInt($content),
+            ColumnType::Uuid, ColumnType::Timestamp => $this->unpackUuid($content),
+            ColumnType::Varint => $this->unpackVarInt($content),
+            ColumnType::Inet => $this->unpackInet($content),
+            ColumnType::List, ColumnType::Set => $this->unpackList($content, $subtype1),
+            ColumnType::Map => $this->unpackMap($content, $subtype1, $subtype2)
         };
     }
 
@@ -1358,7 +1359,7 @@ class Cassandra
         $flags = 0;
 
         // STARTUP and OPTION Messages cannot be compressed
-        $invalidOpcodes = [Opcode::STARTUP, Opcode::OPTIONS];
+        $invalidOpcodes = [Opcode::Startup, Opcode::Options];
         if (!in_array($opcode, $invalidOpcodes) && $this->compressor instanceof CompressorInterface) {
             $flags |= self::FLAG_COMPRESSION;
             if (($body = $this->compressor->compress($body)) === false) {

@@ -12,24 +12,24 @@ use CassandraNative\Exception\UnauthorizedException;
 
 enum ErrorCode : int
 {
-    case SERVER_ERROR           = 0x0000;
-    case PROTOCOL_ERROR         = 0x000A;
-    case AUTHENTICATION_ERROR   = 0x0100;
-    case UNAVAILABLE_ERROR      = 0x1000;
-    case OVERLOADED_ERROR       = 0x1001;
-    case IS_BOOTSTRAPPING_ERROR = 0x1002;
-    case TRUNCATE_ERROR         = 0x1003;
-    case WRITE_TIMEOUT_ERROR    = 0x1100;
-    case READ_TIMEOUT_ERROR     = 0x1200;
-    case READ_FAILURE_ERROR     = 0x1300;
-    case FUNCTION_FAILURE_ERROR = 0x1400;
-    case WRITE_FAILURE_ERROR    = 0x1500;
-    case SYNTAX_ERROR           = 0x2000;
-    case UNAUTHORIZED_ERROR     = 0x2100;
-    case INVALID_ERROR          = 0x2200;
-    case CONFIG_ERROR           = 0x2300;
-    case ALREADY_EXISTS_ERROR   = 0x2400;
-    case UNPREPARED_ERROR       = 0x2500;
+    case ServerError          = 0x0000;
+    case ProtocolError        = 0x000A;
+    case AuthenticationError  = 0x0100;
+    case UnavailableError     = 0x1000;
+    case OverloadedError      = 0x1001;
+    case IsBootstrappingError = 0x1002;
+    case TruncateError        = 0x1003;
+    case WriteTimeoutError    = 0x1100;
+    case ReadTimeoutError     = 0x1200;
+    case ReadFailureError     = 0x1300;
+    case FunctionFailureError = 0x1400;
+    case WriteFailureError    = 0x1500;
+    case SyntaxError          = 0x2000;
+    case UnauthorizedError    = 0x2100;
+    case InvalidError         = 0x2200;
+    case ConfigError          = 0x2300;
+    case AlreadyExistsError   = 0x2400;
+    case UnpreparedError      = 0x2500;
 
     /**
      * Converts an error message returned from Cassandra into an exception
@@ -41,12 +41,12 @@ enum ErrorCode : int
     public function toException(string $errorMessage): never
     {
         $exception = match ($this) {
-            self::SERVER_ERROR, self::OVERLOADED_ERROR, self::UNAVAILABLE_ERROR, self::IS_BOOTSTRAPPING_ERROR, self::TRUNCATE_ERROR => ServerException::class,
-            self::PROTOCOL_ERROR => ProtocolException::class,
-            self::AUTHENTICATION_ERROR => AuthenticationException::class,
-            self::WRITE_TIMEOUT_ERROR, self::READ_TIMEOUT_ERROR => TimeoutException::class,
-            self::READ_FAILURE_ERROR, self::FUNCTION_FAILURE_ERROR, self::WRITE_FAILURE_ERROR, self::SYNTAX_ERROR, self::INVALID_ERROR, self::CONFIG_ERROR, self::ALREADY_EXISTS_ERROR, self::UNPREPARED_ERROR => QueryException::class,
-            self::UNAUTHORIZED_ERROR => UnauthorizedException::class
+            self::ServerError, self::OverloadedError, self::UnavailableError, self::IsBootstrappingError, self::TruncateError => ServerException::class,
+            self::ProtocolError => ProtocolException::class,
+            self::AuthenticationError => AuthenticationException::class,
+            self::WriteTimeoutError, self::ReadTimeoutError => TimeoutException::class,
+            self::ReadFailureError, self::FunctionFailureError, self::WriteFailureError, self::SyntaxError, self::InvalidError, self::ConfigError, self::AlreadyExistsError, self::UnpreparedError => QueryException::class,
+            self::UnauthorizedError => UnauthorizedException::class
         };
         
         throw new $exception($errorMessage, $this->value);

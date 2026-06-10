@@ -4,20 +4,20 @@ namespace CassandraNative;
 
 enum Opcode : int
 {
-    case ERROR          = 0x00;
-    case STARTUP        = 0x01;
-    case READY          = 0x02;
-    case AUTHENTICATE   = 0x03;
-    case OPTIONS        = 0x05;
-    case SUPPORTED      = 0x06;
-    case QUERY          = 0x07;
-    case RESULT         = 0x08;
-    case PREPARE        = 0x09;
-    case EXECUTE        = 0x0A;
-    case REGISTER       = 0x0B;
-    case EVENT          = 0x0C;
-    case BATCH          = 0x0D;
-    case AUTH_CHALLENGE = 0x0E;
-    case AUTH_RESPONSE  = 0x0F;
-    case AUTH_SUCCESS   = 0x10;
+    case Error         = 0x00;
+    case Startup       = 0x01;
+    case Ready         = 0x02;
+    case Authenticate  = 0x03;
+    case Options       = 0x05;
+    case Supported     = 0x06;
+    case Query         = 0x07;
+    case Result        = 0x08;
+    case Prepare       = 0x09;
+    case Execute       = 0x0A;
+    case Register      = 0x0B;
+    case Event         = 0x0C;
+    case Batch         = 0x0D;
+    case AuthChallenge = 0x0E;
+    case AuthResponse  = 0x0F;
+    case AuthSuccess   = 0x10;
 }
