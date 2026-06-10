@@ -11,7 +11,7 @@ use CassandraNative\SSL\SSLOptions;
 
 class ClusterBuilder
 {
-    protected Consistency $consistency = Consistency::ONE;
+    protected Consistency $consistency = Consistency::One;
 
     /**
      * @var string[]

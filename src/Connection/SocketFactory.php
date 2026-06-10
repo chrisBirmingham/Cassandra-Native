@@ -34,8 +34,8 @@ class SocketFactory
             // Choose a random contact host to connect too. If it fails try another one until we either connect to a
             // host or hit max connection attempts
             $index = array_rand($hosts);
-            $host = $this->hosts[$index];
-            array_splice($this->hosts, $index, 1);
+            $host = $hosts[$index];
+            array_splice($hosts, $index, 1);
 
             try {
                 $socket = $this->bindSocket($host);
