@@ -22,8 +22,9 @@ class SocketFactory
      * @param string[] $hosts
      * @param int $maxAttempts
      *
-     * @throws ConnectException
-     * @throws NoHostsAvailableExcepton
+     * @return Socket
+     * @throws ConnectionException
+     * @throws NoHostsAvailableException
      */
     public function connect(array $hosts, int $maxAttempts): Socket
     {
@@ -65,11 +66,12 @@ class SocketFactory
     /**
      * Create the underlying stream socket
      *
-     * @param resource $stream
+     * @param string $host
+     * @return resource
      *
      * @throws ConnectionException
      */
-    protected function bindSocket(string $host): Socket
+    protected function bindSocket(string $host)
     {
         $address = "tcp://$host:$this->port";
         $connectionFlags = STREAM_CLIENT_CONNECT;
@@ -90,7 +92,7 @@ class SocketFactory
             throw new ConnectionException("Socket connect to $address failed: ($errno) $errstr");
         }
 
-        return socket;
+        return $socket;
     }
 
     /**
@@ -130,8 +132,8 @@ class SocketFactory
      */
     protected function setTimeout($socket): void
     {
-        $timeoutSeconds = floor($this->timeout);
-        $timeoutMicroseconds = ($this->timeout - $timeoutSeconds) * 1000000;
+        $timeoutSeconds = floor($this->requestTimeout);
+        $timeoutMicroseconds = ($this->requestTimeout - $timeoutSeconds) * 1000000;
 
         if (!stream_set_timeout($socket, $timeoutSeconds, $timeoutMicroseconds)) {
             fclose($socket);

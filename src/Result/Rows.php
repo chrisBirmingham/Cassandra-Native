@@ -13,6 +13,9 @@ class Rows implements \ArrayAccess, \Iterator
         protected array $results
     ) {}
 
+    /**
+     * @return int
+     */
     public function count(): int
     {
         return count($this->results);
