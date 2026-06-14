@@ -342,11 +342,12 @@ class Cassandra
         Consistency $consistency
     ): array {
         // Prepares the frame's body - <id><count><values map>
-        $frame = base64_decode($stmt->id);
-        $frame = $this->packString($frame) .
+        $frame = [
+            $this->packString(base64_decode($stmt->id)),
             $this->packShort($consistency->value) .
             $this->packByte(0x01) . // values only
-            $this->packShort(count($values));
+            $this->packShort(count($values))
+        ];
 
         foreach ($stmt->columns as $key => $column) {
             if (!isset($values[$key])) {
@@ -362,11 +363,11 @@ class Cassandra
                 $column['subtype2']
             );
 
-            $frame .= $this->packLongString($data);
+            $frame[] = $this->packLongString($data);
         }
 
         // Writes a EXECUTE frame and return the result
-        return $this->requestResult(Opcode::Execute, $frame);
+        return $this->requestResult(Opcode::Execute, implode($frame));
     }
 
     /**
@@ -389,7 +390,11 @@ class Cassandra
     ): array {
         // Prepares the frame's body
         // TODO: Support the new <flags> byte
-        $frame = $this->packLongString($stmt->getStatement()) . $this->packShort($consistency->value);
+        $frame = [
+            $this->packLongString($stmt->getStatement()),
+            $this->packShort($consistency->value)
+        ];
+
         if (count($values)) {
             $valuesData = '';
             $namedParameters = false;
@@ -410,14 +415,17 @@ class Cassandra
                 $valuesData .= $this->packLongString($data);
             }
 
-            $frame .= $this->packByte(0x01 | ($namedParameters ? 0x40 : 0x00)) .
-                $this->packShort(count($values)) .
-                $valuesData;
+            array_push(
+                $frame,
+                $this->packByte(0x01 | ($namedParameters ? 0x40 : 0x00)),
+                $this->packShort(count($values)),
+                $valuesData
+            );
         } else {
-            $frame .= $this->packByte(0x00);
+            $frame[] = $this->packByte(0x00);
         }
 
-        return $this->requestResult(Opcode::Query, $frame);
+        return $this->requestResult(Opcode::Query, implode($frame));
     }
 
     /**
@@ -1035,10 +1043,15 @@ class Cassandra
     protected function unpackUuid(string $content): ?string
     {
         $value = unpack('H*', $content);
+
         if ($value[1]) {
-            return substr($value[1], 0, 8) . '-' . substr($value[1], 8, 4) . '-' .
-                substr($value[1], 12, 4) . '-' . substr($value[1], 16, 4) . '-' .
-                substr($value[1], 20);
+            return implode('-', [
+                substr($value[1], 0, 8),
+                substr($value[1], 8, 4),
+                substr($value[1], 12, 4),
+                substr($value[1], 16, 4),
+                substr($value[1], 20)
+            ]);
         }
 
         return null;
@@ -1111,7 +1124,7 @@ class Cassandra
             $retval[] = $this->packLongString($itemPacked);
         }
 
-        return implode('', $retval);
+        return implode($retval);
     }
 
     /**
@@ -1160,7 +1173,7 @@ class Cassandra
             $retval[] = $this->packLongString($itemPacked);
         }
 
-        return implode('', $retval);
+        return implode($retval);
     }
 
     /**
@@ -1426,7 +1439,7 @@ class Cassandra
             $retval[] = $this->packString($value);
         }
 
-        return implode('', $retval);
+        return implode($retval);
     }
 
     /**
