@@ -1373,17 +1373,13 @@ class Cassandra
      */
     protected function popBytes(string $body, int &$offset): ?string
     {
-        $stringLength = $this->intFromBin($body, $offset, 4, true);
-
         // If the length of a returned bytes block is < 0, the represented value is null
-        if ($stringLength < 0) {
-            $offset += 4;
+        if (($stringLength = $this->popInt($body, $offset)) < 0) {
             return null;
         }
 
-        $retval = substr($body, $offset + 4, $stringLength);
-        $offset += $stringLength + 4;
-
+        $retval = substr($body, $offset, $stringLength);
+        $offset += $stringLength;
         return $retval;
     }
 
