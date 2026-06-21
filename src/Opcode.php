@@ -42,8 +42,7 @@ enum Opcode : int
             self::Batch => 'BATCH',
             self::AuthChallenge => 'AUTH_CHALLENGE',
             self::AuthResponse => 'AUTH_RESPONSE',
-            self::AuthSuccess => 'AUTH_SUCCESS',
-
+            self::AuthSuccess => 'AUTH_SUCCESS'
         };
     }
 }

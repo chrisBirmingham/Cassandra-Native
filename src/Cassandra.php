@@ -404,7 +404,7 @@ class Cassandra
         // Prepares the frame's body
         // TODO: Support the new <flags> byte
         $frame = [
-            $this->packLongString($stmt->getStatement()),
+            $this->packLongString($stmt->query),
             $this->packShort($consistency->value)
         ];
 
