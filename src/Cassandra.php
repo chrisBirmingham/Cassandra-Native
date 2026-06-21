@@ -955,8 +955,7 @@ class Cassandra
             return 0;
         }
 
-        $data = unpack('N', $content);
-        $scale = $data[1];
+        $scale = unpack('N', $content)[1];
         $unscaledValue = $this->unpackVarInt(substr($content, 4));
 
         return $unscaledValue * pow(10, -$scale);
@@ -993,8 +992,7 @@ class Cassandra
             $bigEndian .= $content[$i];
         }
 
-        $value = unpack('d', $bigEndian);
-        return $value[1];
+        return unpack('d', $bigEndian)[1];
     }
 
     /**
