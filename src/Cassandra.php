@@ -167,7 +167,8 @@ class Cassandra
             );
         }
 
-        if (!in_array($this->compressor->getName(), $supportedCompressors)) {
+        if ($this->compressor instanceof CompressionException &&
+            !in_array($this->compressor->getName(), $supportedCompressors)) {
             throw new ClientException(
                 sprintf(
                     'Client configured to use %s compression but Cassandra Cluster supports %s compression',
@@ -1027,8 +1028,7 @@ class Cassandra
             $bigEndian .= $content[$i];
         }
 
-        $value = unpack('f', $bigEndian);
-        return $value[1];
+        return unpack('f', $bigEndian)[1];
     }
 
     /**
@@ -1072,23 +1072,19 @@ class Cassandra
      *
      * @param string $content Content to unpack.
      *
-     * @return ?string Unpacked value.
+     * @return string Unpacked value.
      */
-    protected function unpackUuid(string $content): ?string
+    protected function unpackUuid(string $content): string
     {
-        $value = unpack('H*', $content);
+        $value = unpack('H*', $content)[1];
 
-        if ($value[1]) {
-            return implode('-', [
-                substr($value[1], 0, 8),
-                substr($value[1], 8, 4),
-                substr($value[1], 12, 4),
-                substr($value[1], 16, 4),
-                substr($value[1], 20)
-            ]);
-        }
-
-        return null;
+        return implode('-', [
+            substr($value[1], 0, 8),
+            substr($value[1], 8, 4),
+            substr($value[1], 12, 4),
+            substr($value[1], 16, 4),
+            substr($value[1], 20)
+        ]);
     }
 
     /**
@@ -1402,19 +1398,12 @@ class Cassandra
      */
     protected function popString(string $body, int &$offset): ?string
     {
-        $len = substr($body, $offset, 2);
-        if (strlen($len) < 2) {
+        if (($stringLength = $this->popShort($body, $offset)) == 0xFFFF) {
             return null;
         }
 
-        $stringLength = unpack('n', substr($body, $offset, 2));
-        if ($stringLength[1] == 0xFFFF) {
-            $offset += 2;
-            return null;
-        }
-
-        $retval = substr($body, $offset + 2, $stringLength[1]);
-        $offset += $stringLength[1] + 2;
+        $retval = substr($body, $offset, $stringLength);
+        $offset += $stringLength;
         return $retval;
     }
 
@@ -1429,14 +1418,12 @@ class Cassandra
      */
     protected function popLongString(string $body, int &$offset): ?string
     {
-        $stringLength = unpack('N', substr($body, $offset, 4));
-        if ($stringLength[1] == 0xFFFFFFFF) {
-            $offset += 4;
+        if (($stringLength = $this->popInt($body, $offset)) == 0xFFFFFFFF) {
             return null;
         }
 
-        $retval = substr($body, $offset + 4, $stringLength[1]);
-        $offset += $stringLength[1] + 4;
+        $retval = substr($body, $offset, $stringLength);
+        $offset += $stringLength;
         return $retval;
     }
 
@@ -1541,7 +1528,7 @@ class Cassandra
      */
     protected function packShort(int $data): string
     {
-        return chr($data >> 0x08) . chr($data & 0xFF);
+        return pack('n', $data);
     }
 
     /**
