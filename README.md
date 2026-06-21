@@ -26,13 +26,13 @@ $ composer require intermaterium/cassandra-native
 * Persistent Connections
 * Compression via LZ4.
 * Authentication
+* Tuples and User Defined Types
 
 ## Missing Features
 
 * Batch Statements
 * Async queries
 * Result Paging
-* Tuples and User Defined Types
 
 ## Usage
 
@@ -192,6 +192,8 @@ $rows = $cassandra->execute(
 
 You must specify the bound parameters type when using a simple statement. These
 types are available in `Cassandra::ColumnType` enum.
+
+* Note, container types i.e. Map, Lists etc are not supported for simple statements.
 
 #### Prepared Statements
 

@@ -24,4 +24,6 @@ enum ColumnType : int
     case List      = 0x0020;
     case Map       = 0x0021;
     case Set       = 0x0022;
+    case Udt       = 0x0030;
+    case Tuple     = 0x0031;
 }
