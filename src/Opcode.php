@@ -20,29 +20,4 @@ enum Opcode : int
     case AuthChallenge = 0x0E;
     case AuthResponse  = 0x0F;
     case AuthSuccess   = 0x10;
-
-    /**
-     * @return string
-     */
-    public function toString(): string
-    {
-        return match ($this) {
-            self::Error => 'ERROR',
-            self::Startup => 'STARTUP',
-            self::Ready => 'READY',
-            self::Authenticate => 'AUTHENTICATE',
-            self::Options => 'OPTIONS',
-            self::Supported => 'SUPPORTED',
-            self::Query => 'QUERY',
-            self::Result => 'RESULT',
-            self::Prepare => 'PREPARE',
-            self::Execute => 'EXECUTE',
-            self::Register => 'REGISTER',
-            self::Event => 'EVENT',
-            self::Batch => 'BATCH',
-            self::AuthChallenge => 'AUTH_CHALLENGE',
-            self::AuthResponse => 'AUTH_RESPONSE',
-            self::AuthSuccess => 'AUTH_SUCCESS'
-        };
-    }
 }

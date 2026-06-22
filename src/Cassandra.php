@@ -542,8 +542,8 @@ class Cassandra
             $errMsg = $this->popString($body, $bodyOffset);
             ErrorCode::from($errCode)->toException($errMsg);
         } elseif (!in_array($opcode, $expectedOpcodes)) {
-            $expected = implode(' or ', array_map(fn(Opcode $op) => $op->toString(), $expectedOpcodes));
-            throw new ProtocolException("Missing $expected packet. Got {$opcode->toString()} instead", $opcode);
+            $expected = implode(' or ', array_map(fn(Opcode $op) => $op->name, $expectedOpcodes));
+            throw new ProtocolException("Missing $expected packet. Got {$opcode->name} instead", $opcode);
         }
 
         return [$opcode, $body];
@@ -740,8 +740,9 @@ class Cassandra
             $row = [];
             foreach ($columns as $col) {
                 $content = $this->popBytes($body, $bodyOffset);
-                $value = $this->unpackValue($content, $col['type'], $col['subtypes']);
-                $row[$col['name']] = $value;
+                $row[$col['name']] = ($content !== null)
+                    ? $this->unpackValue($content, $col['type'], $col['subtypes'])
+                    : null;
             }
             $retval[] = $row;
         }
@@ -787,7 +788,7 @@ class Cassandra
      * Unpacks a value from its binary form based on a column type. Used for
      * parsing rows.
      *
-     * @param ?string $content       Content to unpack.
+     * @param string $content        Content to unpack.
      * @param ColumnType $type       Column type.
      * @param ColumnType[] $subTypes List of subtypes for container types
      *
@@ -796,14 +797,10 @@ class Cassandra
      * @throws CassandraException
      */
     protected function unpackValue(
-        ?string $content,
+        string $content,
         ColumnType $type,
         array $subTypes = []
     ): mixed {
-        if ($content === NULL) {
-            return NULL;
-        }
-
         return match ($type) {
             ColumnType::Custom, ColumnType::Blob => $this->unpackBlob($content),
             ColumnType::Ascii, ColumnType::Text, ColumnType::Varchar => $content,
