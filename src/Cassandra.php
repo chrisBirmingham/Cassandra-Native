@@ -532,8 +532,8 @@ class Cassandra
         // If we got an error - trigger it and return an error
         if ($opcode == Opcode::Error) {
             // ERROR: <int code><string msg>
-            $errCode = $this->intFromBin($body, 0, 4);
-            $bodyOffset = 4;  // Must be passed by reference
+            $bodyOffset = 0;
+            $errCode = $this->popInt($body, $bodyOffset);
             $errMsg = $this->popString($body, $bodyOffset);
             ErrorCode::from($errCode)->toException($errMsg);
         } elseif (!in_array($opcode, $expectedOpcodes)) {
@@ -564,8 +564,10 @@ class Cassandra
         do {
             // Read the 9 bytes header
             $header = $this->socket->read(9);
-            $responseStreamId = $this->intFromBin($header, 2, 2);
-            $length = $this->intFromBin($header, 5, 4);
+            $offset = 2;
+            $responseStreamId = $this->popShort($header, $offset);
+            $offset++;
+            $length = $this->popInt($header, $offset);
 
             // Read frame body, if exists
             $body = ($length) ? $this->socket->read($length) : '';
@@ -872,7 +874,7 @@ class Cassandra
      */
     protected function unpackBigint(string $content): int
     {
-        return $this->intFromBin($content, 0, 8, true);
+        return unpack('J', $content)[1];
     }
 
     /**
@@ -1024,7 +1026,7 @@ class Cassandra
      */
     protected function unpackInt(string $content): int
     {
-        return $this->intFromBin($content, 0, 4, true);
+        return unpack('N', $content)[1];
     }
 
     /**
@@ -1099,7 +1101,7 @@ class Cassandra
      */
     protected function unpackVarInt(string $content): int
     {
-        return $this->intFromBin($content, 0, strlen($content), true);
+        return $this->intFromBin($content, 0, strlen($content));
     }
 
     /**
@@ -1425,7 +1427,7 @@ class Cassandra
      */
     protected function popInt(string $body, int &$offset): int
     {
-        $retval = $this->intFromBin($body, $offset, 4, true);
+        $retval = $this->intFromBin($body, $offset, 4);
         $offset += 4;
         return $retval;
     }
@@ -1441,7 +1443,7 @@ class Cassandra
      */
     protected function popShort(string $body, int &$offset): int
     {
-        $retval = $this->intFromBin($body, $offset, 2, true);
+        $retval = $this->intFromBin($body, $offset, 2);
         $offset += 2;
         return $retval;
     }
@@ -1555,19 +1557,16 @@ class Cassandra
      * @param string $data Binary content.
      * @param int $offset  Starting data offset.
      * @param int $length  Data length.
-     * @param bool $signed Whether the returned data can be signed.
      *
      * @return int Parsed varint.
      */
-    protected function intFromBin(string $data, int $offset, int $length, bool $signed = false): int
+    protected function intFromBin(string $data, int $offset, int $length): int
     {
-        $len = strlen($data);
-
-        if ((!$length) || ($offset >= $len)) {
+        if ($length === 0) {
             return 0;
         }
 
-        $signed = $signed && (ord($data[$offset]) & 0x80);
+        $signed = ord($data[$offset]) & 0x80;
 
         $value = 0;
         for ($i = 0; $i < $length; $i++) {
