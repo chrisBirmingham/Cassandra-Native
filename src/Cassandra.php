@@ -72,11 +72,6 @@ class Cassandra
     protected const MAX_STREAM_ID = 32768;
 
     /**
-     * @param Socket $socket
-     * @param Consistency $defaultConsistency
-     * @param ?CompressorInterface $compressor
-     * @param ?AuthProviderInterface $authProvider
-     * @param bool $usingPersistence
      * @throws CassandraException
      */
     public function __construct(
@@ -759,6 +754,8 @@ class Cassandra
      * @param ColumnType[] $subTypes List of subtypes for container types
      *
      * @return string Binary form of the value.
+     *
+     * @throws CassandraException
      */
     protected function packValue(
         mixed $value,
@@ -863,7 +860,7 @@ class Cassandra
      */
     protected function packBigint(int $value): string
     {
-        return $this->binFromInt($value, 8, true);
+        return pack('J', $value);
     }
 
     /**
@@ -967,12 +964,7 @@ class Cassandra
      */
     protected function packDouble(float $value): string
     {
-        $littleEndian = pack('d', $value);
-        $retval = '';
-        for ($i = 7; $i >= 0; $i--) {
-            $retval .= $littleEndian[$i];
-        }
-        return $retval;
+        return pack('E', $value);
     }
 
     /**
@@ -984,12 +976,7 @@ class Cassandra
      */
     protected function unpackDouble(string $content): float
     {
-        $bigEndian = '';
-        for ($i = 7; $i >= 0; $i--) {
-            $bigEndian .= $content[$i];
-        }
-
-        return unpack('d', $bigEndian)[1];
+        return unpack('E', $content)[1];
     }
 
     /**
@@ -1001,12 +988,7 @@ class Cassandra
      */
     protected function packFloat(float $value): string
     {
-        $littleEndian = pack('f', $value);
-        $retval = '';
-        for ($i = 3; $i >= 0; $i--) {
-            $retval .= $littleEndian[$i];
-        }
-        return $retval;
+        return pack('G', $value);
     }
 
     /**
@@ -1018,12 +1000,7 @@ class Cassandra
      */
     protected function unpackFloat(string $content): float
     {
-        $bigEndian = '';
-        for ($i = 3; $i >= 0; $i--) {
-            $bigEndian .= $content[$i];
-        }
-
-        return unpack('f', $bigEndian)[1];
+        return unpack('G', $content)[1];
     }
 
     /**
@@ -1035,7 +1012,7 @@ class Cassandra
      */
     protected function packInt(int $value): string
     {
-        return $this->binFromInt($value, 4, true);
+        return pack('N', $value);
     }
 
     /**
@@ -1085,13 +1062,32 @@ class Cassandra
     /**
      * Packs a COLUMNTYPE_VARINT value to its binary form.
      *
-     * @param int $content Value to pack.
+     * @param int $value Value to pack.
      *
      * @return string Binary form of the value.
      */
-    protected function packVarInt(int $content): string
+    protected function packVarInt(int $value): string
     {
-        return $this->binFromInt($content, 0xFFFF, true);
+        $negative = $value < 0;
+
+        if ($negative) {
+            $value = -($value + 1);
+        }
+
+        $retval = '';
+
+        while ($value > 0) {
+            $v = $value % 256;
+
+            if ($negative) {
+                $v ^= 0xFF;
+            }
+
+            $retval = chr($v) . $retval;
+            $value = floor($value / 256);
+        }
+
+        return $retval;
     }
 
     /**
@@ -1138,7 +1134,7 @@ class Cassandra
      *
      * @return string Binary form of the value.
      *
-     * @throws \InvalidArgumentException
+     * @throws CassandraException
      */
     protected function packList(array $value, ColumnType $subtype): string
     {
@@ -1185,7 +1181,7 @@ class Cassandra
      *
      * @return string Binary form of the value.
      *
-     * @throws \InvalidArgumentException
+     * @throws CassandraException
      */
     protected function packMap(array $value, ColumnType $subtype1, ColumnType $subtype2): string
     {
@@ -1587,38 +1583,5 @@ class Cassandra
         }
 
         return $value;
-    }
-
-    /**
-     * Converts varint to its binary format.
-     *
-     * @param int $value   Binary content.
-     * @param int $length  Data length.
-     * @param bool $signed Whether the returned data can be signed.
-     *
-     * @return string Binary content.
-     */
-    protected function binFromInt(int $value, int $length, bool $signed = false): string
-    {
-        $negative = (($signed) && ($value < 0));
-        if ($negative) {
-            $value = -($value + 1);
-        }
-
-        $retval = '';
-        for ($i = 0; $i < $length; $i++) {
-            $v = $value % 256;
-            if ($negative) {
-                $v ^= 0xFF;
-            }
-            $retval = chr($v) . $retval;
-            $value = floor($value / 256);
-
-            if (($length == 0xFFFF) && ($value == 0)) {
-                break;
-            }
-        }
-
-        return $retval;
     }
 }
