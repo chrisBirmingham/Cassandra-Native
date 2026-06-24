@@ -1533,7 +1533,7 @@ class Cassandra
      */
     protected function packStringMap(array $dataArr): string
     {
-        $retval = [pack('n', count($dataArr))];
+        $retval = [$this->packShort(count($dataArr))];
 
         foreach ($dataArr as $key => $value) {
             $retval[] = $this->packString($key);
