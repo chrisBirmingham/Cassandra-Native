@@ -1231,7 +1231,8 @@ class Cassandra
                 throw new QueryException("UDT value missing field $field");
             }
 
-            $retval[] = $this->packValue($value[$field], $type);
+            $valueRaw = $this->packValue($value[$field], $type);
+            $retval[] = $this->packLongString($valueRaw);
         }
 
         return implode($retval);
