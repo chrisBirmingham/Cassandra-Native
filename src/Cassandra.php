@@ -538,7 +538,7 @@ class Cassandra
             ErrorCode::from($errCode)->toException($errMsg);
         } elseif (!in_array($opcode, $expectedOpcodes)) {
             $expected = implode(' or ', array_map(fn(Opcode $op) => $op->name, $expectedOpcodes));
-            throw new ProtocolException("Missing $expected packet. Got {$opcode->name} instead", $opcode);
+            throw new ProtocolException("Missing $expected packet. Got $opcode->name instead");
         }
 
         return [$opcode, $body];
