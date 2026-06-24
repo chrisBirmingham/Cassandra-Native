@@ -874,7 +874,7 @@ class Cassandra
      */
     protected function unpackBigint(string $content): int
     {
-        return $this->intFromBin($content, 0, 8);
+        return $this->intFromBin($content, 8);
     }
 
     /**
@@ -1026,7 +1026,7 @@ class Cassandra
      */
     protected function unpackInt(string $content): int
     {
-        return $this->intFromBin($content, 0, 4);
+        return $this->intFromBin($content, 4);
     }
 
     /**
@@ -1082,7 +1082,7 @@ class Cassandra
      */
     protected function unpackVarInt(string $content): int
     {
-        return $this->intFromBin($content, 0, strlen($content));
+        return $this->intFromBin($content, strlen($content));
     }
 
     /**
@@ -1409,9 +1409,7 @@ class Cassandra
      */
     protected function popInt(string $body, int &$offset): int
     {
-        $retval = $this->intFromBin($body, $offset, 4);
-        $offset += 4;
-        return $retval;
+        return $this->popNumber($body, 4, $offset);
     }
 
     /**
@@ -1425,8 +1423,20 @@ class Cassandra
      */
     protected function popShort(string $body, int &$offset): int
     {
-        $retval = $this->intFromBin($body, $offset, 2);
-        $offset += 2;
+        return $this->popNumber($body, 2, $offset);
+    }
+
+    /**
+     * @param string $body Content's body.
+     * @param int $size The size of the int type
+     * @param int &$offset Offset to start from.
+     *
+     * @return The numbers content
+     */
+    protected function popNumber(string $body, int $size, int &$offset): int
+    {
+        $retval = $this->intFromBin($body, $size, $offset);
+        $offset += $size;
         return $retval;
     }
 
@@ -1537,12 +1547,12 @@ class Cassandra
      * Converts binary format to a varint.
      *
      * @param string $data Binary content.
-     * @param int $offset  Starting data offset.
      * @param int $length  Data length.
+     * @param int $offset  Starting data offset.
      *
      * @return int Parsed varint.
      */
-    protected function intFromBin(string $data, int $offset, int $length): int
+    protected function intFromBin(string $data, int $length, int $offset = 0): int
     {
         if ($length === 0) {
             return 0;
