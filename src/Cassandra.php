@@ -862,7 +862,7 @@ class Cassandra
      */
     protected function packBigint(int $value): string
     {
-        return pack('J', $value);
+        return $this->binFromInt($value, 8);
     }
 
     /**
@@ -874,7 +874,7 @@ class Cassandra
      */
     protected function unpackBigint(string $content): int
     {
-        return unpack('J', $content)[1];
+        return $this->intFromBin($content, 0, 8);
     }
 
     /**
@@ -1014,7 +1014,7 @@ class Cassandra
      */
     protected function packInt(int $value): string
     {
-        return pack('N', $value);
+        return $this->binFromInt($value, 4);
     }
 
     /**
@@ -1026,7 +1026,7 @@ class Cassandra
      */
     protected function unpackInt(string $content): int
     {
-        return unpack('N', $content)[1];
+        return $this->intFromBin($content, 0, 4);
     }
 
     /**
@@ -1070,26 +1070,7 @@ class Cassandra
      */
     protected function packVarInt(int $value): string
     {
-        $negative = $value < 0;
-
-        if ($negative) {
-            $value = -($value + 1);
-        }
-
-        $retval = '';
-
-        while ($value > 0) {
-            $v = $value % 256;
-
-            if ($negative) {
-                $v ^= 0xFF;
-            }
-
-            $retval = chr($v) . $retval;
-            $value = floor($value / 256);
-        }
-
-        return $retval;
+        return $this->binFromInt($value);
     }
 
     /**
@@ -1582,5 +1563,40 @@ class Cassandra
         }
 
         return $value;
+    }
+
+    /**
+     * Converts varint to its binary format.
+     *
+     * @param int $value   Binary content.
+     * @param int $length  Data length.
+     *
+     * @return string Binary content.
+     */
+    protected function binFromInt(int $value, int $length = 0xFFFF): string
+    {
+        $negative = $value < 0;
+
+        if ($negative) {
+            $value = -($value + 1);
+        }
+
+        $retval = '';
+        for ($i = 0; $i < $length; $i++) {
+            $v = $value % 256;
+
+            if ($negative) {
+                $v ^= 0xFF;
+            }
+
+            $retval = chr($v) . $retval;
+            $value = floor($value / 256);
+
+            if (($length == 0xFFFF) && ($value == 0)) {
+                break;
+            }
+        }
+
+        return $retval;
     }
 }
