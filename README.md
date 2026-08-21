@@ -1,17 +1,16 @@
-# PHP CQL
+# Cassandra Native
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-Native [Apache Cassandra](https://cassandra.apache.org) and
-[ScyllaDB](https://www.scylladb.com) connector for PHP applications
+A native [Apache Cassandra][1] and
+[ScyllaDB][2] connector for PHP applications
 using the CQL binary protocol (v4), without the need for an external
 extension.
 
-Requires [PHP](https://www.php.net/) version >=8, Cassandra >1.2,
+Requires [PHP][3] version >=8.2, Cassandra >1.2,
 and any ScyllaDB version.
 
 Much of the API is built to emulate
-the [Datastax PHP Driver](https://docs.datastax.com/en/developer/php-driver/1.3/index.html).
+the [Datastax PHP Driver][4].
+
 Original work by Uri Hartmann
 
 ## Installation
@@ -27,13 +26,13 @@ $ composer require intermaterium/cassandra-native
 * Persistent Connections
 * Compression via LZ4.
 * Authentication
+* Tuples and User Defined Types
 
 ## Missing Features
 
 * Batch Statements
 * Async queries
 * Result Paging
-* Tuples and User Defined Types
 
 ## Usage
 
@@ -51,10 +50,10 @@ You can specify a set of IP/hostnames to connect to using the
 `withContactPoints` method.
 
 The client will attempt to connect to one of the contact points 
-at random. If the connection fails it will try another host until 
+at random. If the connection fails, it will try another host until
 all contact points have been attempted or max connection attempts,
 configured with the `withMaxConnectionAttempts` method,
-has been reached, default is 3 attempts. If the client cannot connect to 
+has been reached, the default is 3 attempts. If the client cannot connect to
 any of the provided hosts an `NoHostsAvailableException` is thrown.
 
 ```php
@@ -74,7 +73,7 @@ $cassandra->connect('system');
 
 ### SSL
 
-You can turn on SSL Encryption via the `SSLBuilder` class and
+You can enable SSL Encryption via the `SSLBuilder` class and
 pass the result of a call to the `build` method to the `withSSL`
 method of a cluster builder instance.
 
@@ -97,26 +96,15 @@ on the cluster builder.
 $clusterBuilder->withCompression(true);
 ```
 
-When enabled, the client checks to see if the LZ4 extension is loaded by
-PHP. If the extension is not loaded, an exception is thrown.
-
-Originally on creation, the client would send an OPTIONS request and choose 
-which compression  algorithm to use based from the response. This uncovered 
-an issue when using persistent connections. Unless we were using a cache,
-there wasn't a way to tell if the persistent connection had compression 
-enabled unless we queried the cluster again, and Cassandra would return 
-a compressed OPTIONS response before we had set the compressor.
-
-To make things simpler, the client now assumes that the Cassandra cluster 
-supports LZ4 compression when compression is requested and Snappy compression
-has been removed.
+When enabled, the client checks to see if the LZ4 PHP extension is loaded. If the
+extension is not loaded, an exception is thrown.
 
 ### Authentication
 
 Authentication can be enabled by providing an Authentication Provider 
-to the cluster build via the `withCredentials` method. With this library
+to the cluster build via the `withCredentials` method. Included in this library
 is the `PasswordAuthenticator` provider which accepts a plaintext username 
-and password.
+and password combo.
 
 ```php
 $authProvider = new \CassandraNative\Auth\PasswordAuthenticator('cassandra', 'cassandra');
@@ -187,7 +175,7 @@ $stmt = new \CassandraNative\Statement\SimpleStatement('SELECT col1, col2, col3 
 $rows = $cassandra->execute(
     $stmt,
     [
-        [1001, Cassandra::COLUMNTYPE_BIGINT]
+        [1001, Cassandra::ColumnType::Bigint]
     ]
 );
 
@@ -197,12 +185,15 @@ $stmt = new \CassandraNative\Statement\SimpleStatement('SELECT col1, col2, col3 
 $rows = $cassandra->execute(
     $stmt,
     [
-        'id' => [1001, Cassandra::COLUMNTYPE_BIGINT]
+        'id' => [1001, Cassandra::ColumnType::Bigint]
     ]
 );
 ```
 
-You must specify the bound parameters type when using a simple statement
+You must specify the bound parameters type when using a simple statement. These
+types are available in `Cassandra::ColumnType` enum.
+
+* Note, container types i.e. Map, Lists etc are not supported for simple statements.
 
 #### Prepared Statements
 
@@ -224,27 +215,7 @@ Unlike Simple Statements, you don't need to specify the bound values type.
 2. CQL definitions
    https://cassandra.apache.org/doc/latest/cassandra/reference/native-protocol.html#native-protocol-version-4
 
-## License
-
-    The MIT License (MIT)
-
-    Copyright (c) 2023 Uri Hartmann
-    Copyright (c) 2025 Christopher Birmingham
-
-    Permission is hereby granted, free of charge, to any person obtaining a
-    copy of this software and associated documentation files (the "Software"),
-    to deal in the Software without restriction, including without limitation
-    the rights to use, copy, modify, merge, publish, distribute, sublicense,
-    and/or sell copies of the Software, and to permit persons to whom the
-    Software is furnished to do so, subject to the following conditions:
-
-    The above copyright notice and this permission notice shall be included in
-    all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-    DEALINGS IN THE SOFTWARE.
+[1]: https://cassandra.apache.org
+[2]: https://www.scylladb.com
+[3]: https://www.php.net
+[4]: https://docs.datastax.com/en/developer/php-driver/1.3/index.html

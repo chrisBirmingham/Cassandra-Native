@@ -6,15 +6,10 @@ class Rows implements \ArrayAccess, \Iterator
 {
     protected int $position = 0;
 
-    protected array $results;
-
     /**
      * @param array[] $results
      */
-    public function __construct(array $results)
-    {
-        $this->results = $results;
-    }
+    public function __construct(protected array $results) {}
 
     /**
      * @return int

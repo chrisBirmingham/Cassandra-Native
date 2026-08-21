@@ -4,36 +4,13 @@ namespace CassandraNative\SSL;
 
 class SSLOptions
 {
-    protected ?string $trustedCerts;
-
-    protected bool $verify;
-
-    protected ?string $clientCert;
-
-    protected ?string $privateKey;
-
-    protected ?string $passphrase;
-
-    /**
-     * @param ?string $trustedCerts,
-     * @param bool $verify,
-     * @param ?string $clientCert,
-     * @param ?string $privateKey,
-     * @param ?string $passphrase
-     */
     public function __construct(
-        ?string $trustedCerts,
-        bool $verify,
-        ?string $clientCert,
-        ?string $privateKey,
-        ?string $passphrase
-    ) {
-        $this->trustedCerts = $trustedCerts;
-        $this->verify = $verify;
-        $this->clientCert = $clientCert;
-        $this->privateKey = $privateKey;
-        $this->passphrase = $passphrase;
-    }
+        protected ?string $trustedCerts,
+        protected bool $verify,
+        protected ?string $clientCert,
+        protected ?string $privateKey,
+        protected ?string $passphrase,
+    ) {}
 
     /**
      * Returns the SSL options in the format supported by stream_context_create
@@ -44,7 +21,7 @@ class SSLOptions
     {
         $options = [
             'verify_peer' => $this->verify,
-            'verify_peer_name' => $this->verify
+            'verify_peer_name' => $this->verify,
         ];
 
         if ($this->trustedCerts) {

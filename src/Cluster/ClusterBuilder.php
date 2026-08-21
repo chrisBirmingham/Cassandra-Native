@@ -5,11 +5,13 @@ namespace CassandraNative\Cluster;
 use CassandraNative\Auth\AuthProviderInterface;
 use CassandraNative\Cassandra;
 use CassandraNative\Compression\Lz4Compressor;
+use CassandraNative\Connection\SocketFactory;
+use CassandraNative\Consistency;
 use CassandraNative\SSL\SSLOptions;
 
 class ClusterBuilder
 {
-    protected int $consistency = Cassandra::CONSISTENCY_ONE;
+    protected Consistency $consistency = Consistency::One;
 
     /**
      * @var string[]
@@ -32,20 +34,18 @@ class ClusterBuilder
 
     protected bool $useCompression = false;
 
+    protected bool $throwOnOverload = false;
+
     /**
-     * Sets the default consistency for all queries to the cluster. Default is CONSISTENCY_ONE
+     * Sets the default consistency for all queries to the cluster. Default is Consistency::ONE
      *
-     * @param int $consistency
+     * @param Consistency $consistency
      * @return $this
      *
      * @throws \InvalidArgumentException
      */
-    public function withDefaultConsistency(int $consistency): static
+    public function withDefaultConsistency(Consistency $consistency): static
     {
-        if ($consistency < Cassandra::CONSISTENCY_ANY || $consistency > Cassandra::CONSISTENCY_LOCAL_ONE) {
-            throw new \InvalidArgumentException('Invalid consistency provided. Must be between CONSISTENCY_ANY and CONSISTENCY_LOCAL_ONE');
-        }
-
         $this->consistency = $consistency;
         return $this;
     }
@@ -163,8 +163,7 @@ class ClusterBuilder
     }
 
     /**
-     * Sets whether the communication to the cluster should be compressed
-     * If enabled, the driver will prefer LZ4 over snappy if both are available
+     * Sets whether the communication to the cluster should be compressed.
      * Default is no compression
      *
      * @param bool $enabled
@@ -173,6 +172,19 @@ class ClusterBuilder
     public function withCompression(bool $enabled): static
     {
         $this->useCompression = $enabled;
+        return $this;
+    }
+
+    /**
+     * Sets whether the cluster should throw when it's overloaded instead of applying back pressure.
+     * Default is disabled
+     *
+     * @param bool $enabled
+     * @return $this
+     */
+    public function withThrowOnOverload(bool $enabled): static
+    {
+        $this->throwOnOverload = $enabled;
         return $this;
     }
 
@@ -195,19 +207,21 @@ class ClusterBuilder
             }
         }
 
-        $options = new ClusterOptions(
-            $this->consistency,
-            $this->hosts,
-            $this->authProvider,
+        $socketFactory = new SocketFactory(
+            $this->port,
             $this->connectTimeout,
             $this->requestTimeout,
-            $this->attempts,
-            $this->ssl,
-            $this->port,
             $this->persistent,
-            $compressor
+            $this->ssl
         );
 
-        return new Cassandra($options);
+        return new Cassandra(
+            $socketFactory->connect($this->hosts, min(count($this->hosts), $this->attempts)),
+            $this->consistency,
+            $compressor,
+            $this->authProvider,
+            $this->persistent,
+            $this->throwOnOverload
+        );
     }
 }
