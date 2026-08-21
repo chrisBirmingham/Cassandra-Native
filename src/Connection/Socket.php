@@ -7,13 +7,9 @@ use CassandraNative\Exception\TimeoutException;
 
 class Socket
 {
-    /**
-     * @param resource $stream
-     * @param bool $persistent
-     */
     public function __construct(
         protected $stream,
-        protected bool $persistent
+        protected bool $persistent,
     ) {}
 
     /**

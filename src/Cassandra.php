@@ -80,7 +80,7 @@ class Cassandra
         protected ?CompressorInterface $compressor,
         protected ?AuthProviderInterface $authProvider,
         protected bool $usingPersistence,
-        protected bool $throwOnOverload
+        protected bool $throwOnOverload,
     ) {
         $this->establishConnection();
     }
@@ -184,7 +184,7 @@ class Cassandra
         $startBody = [
             'CQL_VERSION' => '3.0.0',
             'DRIVER_NAME' => 'PHP Cassandra Native Driver',
-            'DRIVER_VERSION' => '4.0.0'
+            'DRIVER_VERSION' => '4.0.0',
         ];
 
         if ($this->compressor instanceof CompressorInterface) {
@@ -209,7 +209,7 @@ class Cassandra
      */
     protected function startupResult(): void
     {
-        list($opcode, $body) = $this->readFrame([Opcode::Ready, Opcode::Authenticate]);
+        [$opcode, $body] = $this->readFrame([Opcode::Ready, Opcode::Authenticate]);
 
         if ($opcode === Opcode::Ready) {
             if ($this->authProvider instanceof AuthProviderInterface) {
@@ -244,7 +244,7 @@ class Cassandra
         $authResponseBody = $this->packLongString($authResponseBody);
         $this->writeFrame(Opcode::AuthResponse, $authResponseBody);
 
-        list($opcode, $body) = $this->readFrame([Opcode::AuthSuccess, Opcode::AuthChallenge]);
+        [$opcode, $body] = $this->readFrame([Opcode::AuthSuccess, Opcode::AuthChallenge]);
 
         if ($opcode === Opcode::AuthChallenge) {
             if (!($this->authProvider instanceof AuthChallengeProviderInterface)) {
@@ -257,7 +257,7 @@ class Cassandra
                 $authChallengeResponseBody = $this->packLongString($authChallengeResponseBody);
                 $this->writeFrame(Opcode::AuthResponse, $authChallengeResponseBody);
 
-                list($opcode, $body) = $this->readFrame([Opcode::AuthSuccess, Opcode::AuthChallenge]);
+                [$opcode, $body] = $this->readFrame([Opcode::AuthSuccess, Opcode::AuthChallenge]);
             } while ($opcode == Opcode::AuthChallenge);
         }
     }
@@ -300,13 +300,13 @@ class Cassandra
     public function execute(
         StatementInterface $stmt,
         array $values = [],
-        ?Consistency $consistency = null
+        ?Consistency $consistency = null,
     ): Rows {
         $consistency ??= $this->defaultConsistency;
 
         $rows = match (true) {
             $stmt instanceof PreparedStatement => $this->executePreparedStatement($stmt, $values, $consistency),
-            $stmt instanceof SimpleStatement => $this->executeSimpleStatement($stmt, $values, $consistency)
+            $stmt instanceof SimpleStatement => $this->executeSimpleStatement($stmt, $values, $consistency),
         };
 
         return new Rows($rows);
@@ -349,14 +349,14 @@ class Cassandra
     protected function executePreparedStatement(
         PreparedStatement $stmt,
         array $values,
-        Consistency $consistency
+        Consistency $consistency,
     ): array {
         // Prepares the frame's body - <id><count><values map>
         $frame = [
             $this->packString(base64_decode($stmt->id)),
-            $this->packShort($consistency->value) .
-            $this->packByte(0x01) . // values only
-            $this->packShort(count($values))
+            $this->packShort($consistency->value),
+            $this->packByte(0x01), // values only
+            $this->packShort(count($values)),
         ];
 
         foreach ($stmt->columns as $key => $column) {
@@ -369,7 +369,7 @@ class Cassandra
             $data = $this->packValue(
                 $value,
                 $column['type'],
-                $column['subtypes']
+                $column['subtypes'],
             );
 
             $frame[] = $this->packLongString($data);
@@ -395,7 +395,7 @@ class Cassandra
     protected function executeSimpleStatement(
         SimpleStatement $stmt,
         array $values,
-        Consistency $consistency
+        Consistency $consistency,
     ): array {
         // Prepares the frame's body
         // TODO: Support the new <flags> byte
@@ -435,7 +435,7 @@ class Cassandra
                 $frame,
                 $this->packByte(0x01 | ($namedParameters ? 0x40 : 0x00)),
                 $this->packShort(count($values)),
-                $valuesData
+                $valuesData,
             );
         } else {
             $frame[] = $this->packByte(0x00);
@@ -477,8 +477,11 @@ class Cassandra
      *
      * @throws CassandraException
      */
-    protected function writeFrame(Opcode $opcode, string $body = '', int $stream = 0): void
-    {
+    protected function writeFrame(
+        Opcode $opcode,
+        string $body = '',
+        int $stream = 0,
+    ): void {
         // Prepares the outgoing packet
         $frame = $this->packFrame($opcode, $body, $stream);
 
@@ -498,16 +501,17 @@ class Cassandra
      * 
      * @throws CassandraException
      */
-    protected function parseIncomingFrame(string $header, string $body, array $expectedOpcodes): array
-    {
+    protected function parseIncomingFrame(
+        string $header,
+        string $body,
+        array $expectedOpcodes,
+    ): array {
         $flags = ord($header[1]);
 
         // Unpack the header to its contents:
         // <byte version><byte flags><uint16 stream><byte opcode><int length>
 
-        try {
-            $opcode = Opcode::from(ord($header[4]));
-        } catch (\ValueError) {
+        if (($opcode = Opcode::tryFrom(ord($header[4]))) === null) {
             throw new ProtocolException('Unknown opcode returned from Cassandra');
         }
 
@@ -610,13 +614,13 @@ class Cassandra
                 foreach ($metadata as $column) {
                     $columns[$column['name']] = [
                         'type' => $column['type'],
-                        'subtypes' => $column['subtypes']
+                        'subtypes' => $column['subtypes'],
                     ];
                 }
 
                 return [
                     'id' => $id,
-                    'columns' => $columns
+                    'columns' => $columns,
                 ];
             case ResultKind::SchemaChange:
                 // <string change><string keyspace><string table>
@@ -626,7 +630,7 @@ class Cassandra
                 return [[
                     'change' => $change,
                     'target' => $target,
-                    'options' => $options
+                    'options' => $options,
                 ]];
             default:
                 throw new ProtocolException("Unknown result kind $kind returned");
@@ -642,8 +646,11 @@ class Cassandra
      *
      * @return array Columns list
      */
-    protected function parseRowsMetadata(string $body, int &$bodyOffset, bool $readPk = false): array
-    {
+    protected function parseRowsMetadata(
+        string $body,
+        int &$bodyOffset,
+        bool $readPk = false,
+    ): array {
         $flags = $this->popInt($body, $bodyOffset);
         $columnsCount = $this->popInt($body, $bodyOffset);
 
@@ -681,7 +688,7 @@ class Cassandra
                 case ColumnType::Map:
                     $subTypes = [
                         ColumnType::from($this->popShort($body, $bodyOffset)),
-                        ColumnType::from($this->popShort($body, $bodyOffset))
+                        ColumnType::from($this->popShort($body, $bodyOffset)),
                     ];
                     break;
                 case ColumnType::Udt:
@@ -708,7 +715,7 @@ class Cassandra
                 'table' => $table,
                 'name' => $columnName,
                 'type' => $columnType,
-                'subtypes' => $subTypes
+                'subtypes' => $subTypes,
             ];
         }
 
@@ -762,7 +769,7 @@ class Cassandra
     protected function packValue(
         mixed $value,
         ColumnType $type,
-        array $subTypes = []
+        array $subTypes = [],
     ): string {
         return match ($type) {
             ColumnType::Custom, ColumnType::Blob => $this->packBlob($value),
@@ -779,7 +786,7 @@ class Cassandra
             ColumnType::List, ColumnType::Set => $this->packList($value, $subTypes[0]),
             ColumnType::Map => $this->packMap($value, $subTypes[0], $subTypes[1]),
             ColumnType::Udt => $this->packUDT($value, $subTypes),
-            ColumnType::Tuple => $this->packTuple($value, $subTypes)
+            ColumnType::Tuple => $this->packTuple($value, $subTypes),
         };
     }
 
@@ -798,7 +805,7 @@ class Cassandra
     protected function unpackValue(
         string $content,
         ColumnType $type,
-        array $subTypes = []
+        array $subTypes = [],
     ): mixed {
         return match ($type) {
             ColumnType::Custom, ColumnType::Blob => $this->unpackBlob($content),
@@ -815,7 +822,7 @@ class Cassandra
             ColumnType::List, ColumnType::Set => $this->unpackList($content, $subTypes[0]),
             ColumnType::Map => $this->unpackMap($content, $subTypes[0], $subTypes[1]),
             ColumnType::Udt => $this->unpackUDT($content, $subTypes),
-            ColumnType::Tuple => $this->unpackTuple($content, $subTypes)
+            ColumnType::Tuple => $this->unpackTuple($content, $subTypes),
         };
     }
 
@@ -1057,7 +1064,7 @@ class Cassandra
             substr($value[1], 8, 4),
             substr($value[1], 12, 4),
             substr($value[1], 16, 4),
-            substr($value[1], 20)
+            substr($value[1], 20),
         ]);
     }
 
@@ -1166,8 +1173,11 @@ class Cassandra
      *
      * @throws CassandraException
      */
-    protected function packMap(array $value, ColumnType $subtype1, ColumnType $subtype2): string
-    {
+    protected function packMap(
+        array $value,
+        ColumnType $subtype1,
+        ColumnType $subtype2,
+    ): string {
         $retval = [$this->packInt(count($value))];
 
         foreach ($value as $key => $item) {
@@ -1194,7 +1204,7 @@ class Cassandra
     protected function unpackMap(
         string $content,
         ColumnType $subtype1,
-        ColumnType $subtype2
+        ColumnType $subtype2,
     ): array {
         $contentOffset = 0;
         $itemsCount = $this->popInt($content, $contentOffset);
@@ -1472,7 +1482,7 @@ class Cassandra
             $stream,
             $opcode->value,
             strlen($body),
-            $body
+            $body,
         );
     }
 

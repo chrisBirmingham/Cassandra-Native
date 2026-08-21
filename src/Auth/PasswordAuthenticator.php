@@ -4,21 +4,10 @@ namespace CassandraNative\Auth;
 
 class PasswordAuthenticator implements AuthProviderInterface
 {
-    protected string $username;
-
-    protected string $password;
-
-    /**
-     * @param string $username
-     * @param string $password
-     */
     public function __construct(
-        string $username,
-        #[\SensitiveParameter] string $password
-    ) {
-        $this->username = $username;
-        $this->password = $password;
-    }
+        protected string $username,
+        #[\SensitiveParameter] protected string $password,
+    ) {}
 
     /**
      * @inheritDoc

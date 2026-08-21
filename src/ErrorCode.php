@@ -46,7 +46,7 @@ enum ErrorCode : int
             self::AuthenticationError => AuthenticationException::class,
             self::WriteTimeoutError, self::ReadTimeoutError => TimeoutException::class,
             self::ReadFailureError, self::FunctionFailureError, self::WriteFailureError, self::SyntaxError, self::InvalidError, self::ConfigError, self::AlreadyExistsError, self::UnpreparedError => QueryException::class,
-            self::UnauthorizedError => UnauthorizedException::class
+            self::UnauthorizedError => UnauthorizedException::class,
         };
         
         throw new $exception($errorMessage, $this->value);

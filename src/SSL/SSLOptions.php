@@ -9,7 +9,7 @@ class SSLOptions
         protected bool $verify,
         protected ?string $clientCert,
         protected ?string $privateKey,
-        protected ?string $passphrase
+        protected ?string $passphrase,
     ) {}
 
     /**
@@ -21,7 +21,7 @@ class SSLOptions
     {
         $options = [
             'verify_peer' => $this->verify,
-            'verify_peer_name' => $this->verify
+            'verify_peer_name' => $this->verify,
         ];
 
         if ($this->trustedCerts) {

@@ -10,10 +10,10 @@ class SocketFactory
 {
     public function __construct(
         protected int $port,
-        protected int $connectTimeout,
-        protected int $requestTimeout,
+        protected float $connectTimeout,
+        protected float $requestTimeout,
         protected bool $persistent,
-        protected ?SSLOptions $sslOptions = null
+        protected ?SSLOptions $sslOptions = null,
     ) {}
 
     /**

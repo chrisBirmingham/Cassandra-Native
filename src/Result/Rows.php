@@ -9,9 +9,7 @@ class Rows implements \ArrayAccess, \Iterator
     /**
      * @param array[] $results
      */
-    public function __construct(
-        protected array $results
-    ) {}
+    public function __construct(protected array $results) {}
 
     /**
      * @return int
